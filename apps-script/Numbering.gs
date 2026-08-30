@@ -1,0 +1,1 @@
+/** Numeración consecutiva de documentos. */

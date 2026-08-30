@@ -1,0 +1,45 @@
+# Dependencies and build outputs
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.turbo/
+.vite/
+tmp/
+playwright-report/
+test-results/
+.wrangler/
+
+# Secrets and local Supabase state
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+
+# Local migration inputs/reports (may contain business data)
+migration/input/
+migration/output/
+
+# Source and generated business documents may contain customer data.
+# Keep only sanitized references in the repository.
+*.xlsx
+*.xls
+*.docx
+*.pdf
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Existing project conventions
+.clasp.json
+.clasprc.json
+.vscode/
+.idea/
+*.log
+Thumbs.db
+Desktop.ini
+.DS_Store

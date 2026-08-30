@@ -1,0 +1,3 @@
+name = "frave-pdf-generator"
+pages_build_output_dir = "apps/web/dist"
+

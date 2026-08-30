@@ -1,0 +1,35 @@
+project_id = "frave-pdf-generator"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["https://*.pages.dev"]
+
+[functions.preview-document]
+verify_jwt = true
+
+[functions.generate-document]
+verify_jwt = true
+
+[functions.create-share-link]
+verify_jwt = true
+
+[functions.admin-invite-user]
+verify_jwt = true
+
+[functions.admin-import-migration]
+verify_jwt = false

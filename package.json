@@ -1,0 +1,26 @@
+{
+  "name": "frave-pdf-generator",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.5",
+  "scripts": {
+    "dev": "pnpm --filter @frave/web dev",
+    "build": "pnpm --filter @frave/web build",
+    "test": "pnpm --filter @frave/domain test",
+    "typecheck": "pnpm --filter @frave/domain typecheck && pnpm --filter @frave/web typecheck",
+    "lint": "pnpm --filter @frave/domain lint && pnpm --filter @frave/web lint",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@typescript-eslint/eslint-plugin": "^8.26.0",
+    "@typescript-eslint/parser": "^8.26.0",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "supabase": "^2.116.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9",
+    "xlsx": "^0.18.5"
+  }
+}
