@@ -65,8 +65,15 @@ for (const file of files) {
         const product = {
           sku,
           name: first(row, ['Denominación', 'Denominacion', 'Producto', 'Nombre']),
-          category: first(row, ['Categoría', 'Categoria']),
-          unitPriceUsd: first(row, ['Precio', 'USD/Kg', 'Precio USD/kg']),
+          category: first(row, [
+            'Categoría',
+            'Categoria',
+            'Categoría HC / PC',
+            'Categoria HC / PC',
+            'Categoría HC/PC',
+            'Categoria HC/PC',
+          ]),
+          unitPriceUsd: first(row, ['Precio', 'USD/Kg', 'USD / Kg', 'Precio USD/kg']),
         };
         const productKey = key(sku);
         const previous = products.get(productKey);
