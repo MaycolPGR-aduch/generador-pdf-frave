@@ -443,8 +443,8 @@ declare
   doc public.documents;
   setting public.company_settings;
   client_row record;
-  contact_row record;
-  address_row record;
+  contact_row public.client_contacts%rowtype;
+  address_row public.client_addresses%rowtype;
   seller_row record;
   item record;
   line_subtotal numeric(14,2);
@@ -500,15 +500,15 @@ begin
     from public.clients c where c.id = doc.client_id and c.active;
   if not found then raise exception 'Cliente no disponible'; end if;
   if doc.contact_id is not null then
-    select cc.full_name, cc.salutation, cc.email, cc.phone into contact_row
-      from public.client_contacts cc
-      where cc.id = doc.contact_id and cc.client_id = doc.client_id and cc.active;
+    select * into contact_row
+      from public.client_contacts
+      where id = doc.contact_id and client_id = doc.client_id and active;
     if not found then raise exception 'Contacto no disponible'; end if;
   end if;
   if doc.address_id is not null then
-    select ca.label, ca.address, ca.district, ca.city into address_row
-      from public.client_addresses ca
-      where ca.id = doc.address_id and ca.client_id = doc.client_id and ca.active;
+    select * into address_row
+      from public.client_addresses
+      where id = doc.address_id and client_id = doc.client_id and active;
     if not found then raise exception 'Dirección no disponible'; end if;
   end if;
   select p.full_name, p.email, p.phone, p.area into seller_row
