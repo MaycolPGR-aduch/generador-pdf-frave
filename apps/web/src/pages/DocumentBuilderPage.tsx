@@ -13,6 +13,7 @@ import {
   listClientAddresses,
   listClientContacts,
   listClients,
+  listCommercialOptions,
   listProducts,
   listVariants,
   updateDraft,
@@ -67,6 +68,10 @@ export function DocumentBuilderPage() {
   const clients = useQuery({ queryKey: ['clients'], queryFn: listClients });
   const products = useQuery({ queryKey: ['products'], queryFn: listProducts });
   const variants = useQuery({ queryKey: ['variants'], queryFn: () => listVariants() });
+  const commercialOptions = useQuery({
+    queryKey: ['commercial-options'],
+    queryFn: () => listCommercialOptions(),
+  });
   const existing = useQuery({
     queryKey: ['document', id],
     queryFn: () => loadDocument(id ?? ''),
@@ -121,6 +126,16 @@ export function DocumentBuilderPage() {
   }, [existing.data, form]);
   const type = form.watch('type');
   const watchedItems = form.watch('items');
+  const paymentMethod = form.watch('paymentMethod');
+  const deliveryMethod = form.watch('deliveryMethod');
+  const paymentOptions = useMemo(
+    () => commercialOptions.data?.filter((option) => option.option_type === 'payment') ?? [],
+    [commercialOptions.data],
+  );
+  const deliveryOptions = useMemo(
+    () => commercialOptions.data?.filter((option) => option.option_type === 'delivery') ?? [],
+    [commercialOptions.data],
+  );
   const previewTotals = useMemo(() => {
     if (type !== 'proforma') return null;
     const lines = watchedItems
@@ -303,7 +318,18 @@ export function DocumentBuilderPage() {
               <div className="two-columns">
                 <label>
                   Forma de pago
-                  <input {...form.register('paymentMethod')} placeholder="Ej. 50% adelanto" />
+                  <select required {...form.register('paymentMethod')}>
+                    <option value="">Seleccionar modalidad…</option>
+                    {paymentMethod &&
+                      !paymentOptions.some((option) => option.label === paymentMethod) && (
+                        <option value={paymentMethod}>{paymentMethod} (actual)</option>
+                      )}
+                    {paymentOptions.map((option) => (
+                      <option key={option.id} value={option.label}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                   {form.formState.errors.paymentMethod && (
                     <small className="field-error">
                       {form.formState.errors.paymentMethod.message}
@@ -312,16 +338,27 @@ export function DocumentBuilderPage() {
                 </label>
                 <label>
                   Forma de entrega
-                  <input
-                    {...form.register('deliveryMethod')}
-                    placeholder="Ej. Despacho coordinado"
-                  />
+                  <select required {...form.register('deliveryMethod')}>
+                    <option value="">Seleccionar modalidad…</option>
+                    {deliveryMethod &&
+                      !deliveryOptions.some((option) => option.label === deliveryMethod) && (
+                        <option value={deliveryMethod}>{deliveryMethod} (actual)</option>
+                      )}
+                    {deliveryOptions.map((option) => (
+                      <option key={option.id} value={option.label}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Vigencia hasta
                   <input type="date" {...form.register('validUntil')} />
                 </label>
               </div>
+              <p className="field-help">
+                ¿Necesitas otra modalidad? Un administrador puede agregarla en Configuración.
+              </p>
               <label>
                 Consideraciones <span className="label-hint">una por línea</span>
                 <textarea

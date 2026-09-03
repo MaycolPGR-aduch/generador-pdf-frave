@@ -1,8 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Database, PackageSearch, Plus, Save, Settings2, UsersRound } from 'lucide-react';
+import {
+  Database,
+  PackageSearch,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Settings2,
+  UsersRound,
+} from 'lucide-react';
 import {
   createCategory,
+  createCommercialOption,
   createClient,
   createClientAddress,
   createClientContact,
@@ -12,6 +22,7 @@ import {
   inviteUser,
   listCategories,
   listClients,
+  listCommercialOptions,
   listProducts,
   listVariants,
   listBankAccounts,
@@ -19,6 +30,7 @@ import {
   updateCompanySettings,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
+import type { CommercialOptionType, ProductCategory } from '../lib/types';
 
 type Tab = 'catalog' | 'clients' | 'settings' | 'users';
 
@@ -50,6 +62,25 @@ const emptySettings: SettingsForm = {
   brandColor: '#f47c20',
 };
 
+function normalizeSearch(value: string | null | undefined) {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function productCategoryName(
+  product: { category_id: string; product_categories?: Array<{ name: string }> | null },
+  categories: ProductCategory[],
+) {
+  return (
+    product.product_categories?.[0]?.name ??
+    categories.find((category) => category.id === product.category_id)?.name ??
+    'Sin categoría'
+  );
+}
+
 export function AdminPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -58,6 +89,11 @@ export function AdminPage() {
   const [categoryName, setCategoryName] = useState('');
   const [product, setProduct] = useState({ sku: '', name: '', categoryId: '', unitPriceUsd: '' });
   const [variant, setVariant] = useState({ productId: '', name: '', priceOverrideUsd: '' });
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryId, setProductCategoryId] = useState('');
+  const [variantSearch, setVariantSearch] = useState('');
+  const [variantCategoryId, setVariantCategoryId] = useState('');
+  const [variantProductId, setVariantProductId] = useState('');
   const [customer, setCustomer] = useState({ legalName: '', tradeName: '', taxId: '' });
   const [clientContact, setClientContact] = useState({
     clientId: '',
@@ -86,6 +122,8 @@ export function AdminPage() {
     accountNumber: '',
     cci: '',
   });
+  const [paymentOptionLabel, setPaymentOptionLabel] = useState('');
+  const [deliveryOptionLabel, setDeliveryOptionLabel] = useState('');
 
   const products = useQuery({ queryKey: ['products'], queryFn: listProducts });
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories });
@@ -93,6 +131,60 @@ export function AdminPage() {
   const banks = useQuery({ queryKey: ['banks'], queryFn: listBankAccounts });
   const clients = useQuery({ queryKey: ['clients'], queryFn: listClients });
   const settings = useQuery({ queryKey: ['settings'], queryFn: loadCompanySettings });
+  const commercialOptions = useQuery({
+    queryKey: ['commercial-options'],
+    queryFn: () => listCommercialOptions(),
+  });
+
+  const filteredProducts = useMemo(() => {
+    const search = normalizeSearch(productSearch);
+    return (products.data ?? []).filter((item) => {
+      const categoryName = productCategoryName(item, categories.data ?? []);
+      const matchesCategory = !productCategoryId || item.category_id === productCategoryId;
+      const searchable = normalizeSearch(`${item.sku} ${item.name} ${categoryName}`);
+      return matchesCategory && (!search || searchable.includes(search));
+    });
+  }, [categories.data, productCategoryId, productSearch, products.data]);
+
+  const filteredVariants = useMemo(() => {
+    const search = normalizeSearch(variantSearch);
+    const productById = new Map((products.data ?? []).map((item) => [item.id, item]));
+    return (variants.data ?? []).filter((item) => {
+      const parent = productById.get(item.product_id);
+      const matchesProduct = !variantProductId || item.product_id === variantProductId;
+      const matchesCategory = !variantCategoryId || parent?.category_id === variantCategoryId;
+      const searchable = normalizeSearch(
+        `${item.name} ${parent?.sku ?? ''} ${parent?.name ?? ''} ${
+          parent ? productCategoryName(parent, categories.data ?? []) : ''
+        }`,
+      );
+      return matchesProduct && matchesCategory && (!search || searchable.includes(search));
+    });
+  }, [
+    categories.data,
+    products.data,
+    variantCategoryId,
+    variantProductId,
+    variantSearch,
+    variants.data,
+  ]);
+
+  const paymentOptions = useMemo(
+    () => commercialOptions.data?.filter((option) => option.option_type === 'payment') ?? [],
+    [commercialOptions.data],
+  );
+  const deliveryOptions = useMemo(
+    () => commercialOptions.data?.filter((option) => option.option_type === 'delivery') ?? [],
+    [commercialOptions.data],
+  );
+
+  function clearCatalogFilters() {
+    setProductSearch('');
+    setProductCategoryId('');
+    setVariantSearch('');
+    setVariantCategoryId('');
+    setVariantProductId('');
+  }
 
   useEffect(() => {
     if (!settings.data) return;
@@ -202,6 +294,19 @@ export function AdminPage() {
       setMessage(error instanceof Error ? error.message : 'No se pudo agregar la cuenta.'),
   });
 
+  const commercialOptionMutation = useMutation({
+    mutationFn: (input: { optionType: CommercialOptionType; label: string }) =>
+      createCommercialOption(input),
+    onSuccess: (_, input) => {
+      if (input.optionType === 'payment') setPaymentOptionLabel('');
+      if (input.optionType === 'delivery') setDeliveryOptionLabel('');
+      setMessage('Opción comercial agregada.');
+      void queryClient.invalidateQueries({ queryKey: ['commercial-options'] });
+    },
+    onError: (error) =>
+      setMessage(error instanceof Error ? error.message : 'No se pudo agregar la opción.'),
+  });
+
   const inviteMutation = useMutation({
     mutationFn: () => inviteUser(invite),
     onSuccess: () => {
@@ -272,6 +377,16 @@ export function AdminPage() {
     event.preventDefault();
     setMessage('');
     bankMutation.mutate();
+  }
+
+  function submitCommercialOption(
+    event: FormEvent,
+    optionType: Extract<CommercialOptionType, 'payment' | 'delivery'>,
+    label: string,
+  ) {
+    event.preventDefault();
+    setMessage('');
+    commercialOptionMutation.mutate({ optionType, label });
   }
 
   const tabItems = [
@@ -447,28 +562,156 @@ export function AdminPage() {
               Guardar variante
             </button>
           </form>
-          <div className="admin-list">
-            {products.data?.slice(0, 20).map((item) => (
-              <div key={item.id}>
-                <strong>{item.sku}</strong>
-                <span>{item.name}</span>
-                <b>USD {item.unit_price_usd}</b>
-              </div>
-            ))}
+          <div className="catalog-list-heading">
+            <div>
+              <h3>Productos activos</h3>
+              <p className="muted">Busca por SKU, código, denominación o categoría.</p>
+            </div>
+            <span className="count-badge">
+              {filteredProducts.length} de {products.data?.length ?? 0}
+            </span>
           </div>
-          {variants.data?.length ? (
+          <div className="catalog-filters">
+            <label className="search-field">
+              <Search size={16} aria-hidden="true" />
+              <span className="sr-only">Buscar productos</span>
+              <input
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Buscar por SKU, código o nombre…"
+              />
+            </label>
+            <label className="filter-field">
+              Categoría
+              <select
+                value={productCategoryId}
+                onChange={(event) => setProductCategoryId(event.target.value)}
+              >
+                <option value="">Todas las categorías</option>
+                {categories.data?.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="button ghost small filter-reset"
+              onClick={clearCatalogFilters}
+              disabled={
+                !productSearch &&
+                !productCategoryId &&
+                !variantSearch &&
+                !variantCategoryId &&
+                !variantProductId
+              }
+            >
+              <RotateCcw size={14} />
+              Limpiar
+            </button>
+          </div>
+          {filteredProducts.length ? (
             <div className="admin-list">
-              {variants.data.slice(0, 20).map((item) => (
+              {filteredProducts.slice(0, 100).map((item) => (
                 <div key={item.id}>
-                  <strong>Variante</strong>
-                  <span>{item.name}</span>
-                  <b>
-                    {item.price_override_usd ? `USD ${item.price_override_usd}` : 'Precio base'}
-                  </b>
+                  <strong>{item.sku}</strong>
+                  <span>
+                    {item.name} · {productCategoryName(item, categories.data ?? [])}
+                  </span>
+                  <b>USD {item.unit_price_usd}</b>
                 </div>
               ))}
             </div>
-          ) : null}
+          ) : (
+            <div className="catalog-list-empty">
+              No hay productos que coincidan con los filtros.
+            </div>
+          )}
+          {filteredProducts.length > 100 && (
+            <p className="filter-note">
+              Mostrando los primeros 100 resultados. Afina la búsqueda para encontrar más rápido.
+            </p>
+          )}
+
+          <div className="catalog-list-heading catalog-list-heading-spaced">
+            <div>
+              <h3>Variantes activas</h3>
+              <p className="muted">Filtra por producto y busca por nombre, SKU o categoría.</p>
+            </div>
+            <span className="count-badge">
+              {filteredVariants.length} de {variants.data?.length ?? 0}
+            </span>
+          </div>
+          <div className="catalog-filters variant-filters">
+            <label className="search-field">
+              <Search size={16} aria-hidden="true" />
+              <span className="sr-only">Buscar variantes</span>
+              <input
+                value={variantSearch}
+                onChange={(event) => setVariantSearch(event.target.value)}
+                placeholder="Buscar variante, SKU o producto…"
+              />
+            </label>
+            <label className="filter-field">
+              Categoría
+              <select
+                value={variantCategoryId}
+                onChange={(event) => setVariantCategoryId(event.target.value)}
+              >
+                <option value="">Todas las categorías</option>
+                {categories.data?.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-field">
+              Producto
+              <select
+                value={variantProductId}
+                onChange={(event) => setVariantProductId(event.target.value)}
+              >
+                <option value="">Todos los productos</option>
+                {products.data?.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.sku} · {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {filteredVariants.length ? (
+            <div className="admin-list">
+              {filteredVariants.slice(0, 100).map((item) => {
+                const parent = products.data?.find(
+                  (productItem) => productItem.id === item.product_id,
+                );
+                return (
+                  <div key={item.id}>
+                    <strong>Variante</strong>
+                    <span>
+                      {item.name} · {parent?.sku ?? 'Sin SKU'} ·{' '}
+                      {parent?.name ?? 'Producto pendiente'}
+                    </span>
+                    <b>
+                      {item.price_override_usd ? `USD ${item.price_override_usd}` : 'Precio base'}
+                    </b>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="catalog-list-empty">
+              No hay variantes que coincidan con los filtros.
+            </div>
+          )}
+          {filteredVariants.length > 100 && (
+            <p className="filter-note">
+              Mostrando las primeras 100 variantes. Afina la búsqueda para encontrar más rápido.
+            </p>
+          )}
         </section>
       )}
 
@@ -789,6 +1032,70 @@ export function AdminPage() {
               </button>
             </form>
           )}
+          <div className="admin-section-heading">
+            <div>
+              <h2>Opciones comerciales</h2>
+              <p className="muted">
+                Crea modalidades reutilizables para seleccionarlas al preparar un documento.
+              </p>
+            </div>
+          </div>
+          <div className="commercial-options-grid">
+            <form
+              className="commercial-option-card"
+              onSubmit={(event) => submitCommercialOption(event, 'payment', paymentOptionLabel)}
+            >
+              <label>
+                Formas de pago
+                <input
+                  required
+                  maxLength={160}
+                  value={paymentOptionLabel}
+                  onChange={(event) => setPaymentOptionLabel(event.target.value)}
+                  placeholder="Ej. 50% adelanto, 50% contra entrega"
+                />
+              </label>
+              <button
+                className="button secondary small"
+                disabled={commercialOptionMutation.isPending}
+              >
+                <Plus size={15} />
+                Agregar forma de pago
+              </button>
+              <div className="option-list">
+                {paymentOptions.map((option) => (
+                  <span key={option.id}>{option.label}</span>
+                ))}
+              </div>
+            </form>
+            <form
+              className="commercial-option-card"
+              onSubmit={(event) => submitCommercialOption(event, 'delivery', deliveryOptionLabel)}
+            >
+              <label>
+                Formas de entrega
+                <input
+                  required
+                  maxLength={160}
+                  value={deliveryOptionLabel}
+                  onChange={(event) => setDeliveryOptionLabel(event.target.value)}
+                  placeholder="Ej. Despacho coordinado con el cliente"
+                />
+              </label>
+              <button
+                className="button secondary small"
+                disabled={commercialOptionMutation.isPending}
+              >
+                <Plus size={15} />
+                Agregar forma de entrega
+              </button>
+              <div className="option-list">
+                {deliveryOptions.map((option) => (
+                  <span key={option.id}>{option.label}</span>
+                ))}
+              </div>
+            </form>
+          </div>
           <div className="admin-section-heading">
             <div>
               <h2>Cuentas bancarias</h2>

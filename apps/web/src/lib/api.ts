@@ -12,6 +12,8 @@ import type {
   BankAccount,
   ClientAddress,
   ClientContact,
+  CommercialOption,
+  CommercialOptionType,
 } from './types';
 
 function requireSupabase() {
@@ -71,6 +73,38 @@ export async function listCategories(): Promise<ProductCategory[]> {
     .order('name');
   if (error) throw error;
   return (data ?? []) as ProductCategory[];
+}
+
+export async function listCommercialOptions(
+  optionType?: CommercialOptionType,
+): Promise<CommercialOption[]> {
+  const client = requireSupabase();
+  let query = client
+    .from('commercial_options')
+    .select('id, option_type, label, active, display_order')
+    .eq('active', true)
+    .order('display_order')
+    .order('label');
+  if (optionType) query = query.eq('option_type', optionType);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as CommercialOption[];
+}
+
+export async function createCommercialOption(input: {
+  optionType: CommercialOptionType;
+  label: string;
+}): Promise<CommercialOption> {
+  const client = requireSupabase();
+  const label = input.label.trim();
+  if (!label) throw new Error('La opción comercial no puede estar vacía.');
+  const { data, error } = await client
+    .from('commercial_options')
+    .insert({ option_type: input.optionType, label })
+    .select('id, option_type, label, active, display_order')
+    .single();
+  if (error) throw error;
+  return data as CommercialOption;
 }
 
 export async function createCategory(name: string): Promise<ProductCategory> {

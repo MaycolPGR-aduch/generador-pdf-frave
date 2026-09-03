@@ -139,7 +139,8 @@ Como administrador:
 3. Crea productos con SKU, denominación y precio USD/kg.
 4. Añade variantes si cambia la denominación o el precio.
 5. En **Clientes**, registra razón social y RUC de 11 dígitos.
-6. Configura empresa, bancos y condiciones antes de emitir PDFs definitivos.
+6. En **Configuración > Opciones comerciales**, registra las formas de pago y entrega reutilizables.
+7. Configura empresa y bancos antes de emitir PDFs definitivos. En el generador, pago y entrega se seleccionan desde combos.
 
 ## Migración de datos históricos
 

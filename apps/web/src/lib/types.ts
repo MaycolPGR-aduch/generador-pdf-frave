@@ -84,6 +84,15 @@ export type ProductVariant = {
   active: boolean;
 };
 
+export type CommercialOptionType = 'payment' | 'delivery' | 'consideration';
+export type CommercialOption = {
+  id: string;
+  option_type: CommercialOptionType;
+  label: string;
+  active: boolean;
+  display_order: number;
+};
+
 export type DocumentRow = {
   id: string;
   type: DocumentType;

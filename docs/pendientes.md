@@ -13,5 +13,6 @@ La base del producto ya está implementada. Antes de usar datos operativos se de
 - [ ] Extraer el logo aprobado y ajustar fuentes/espaciado para lograr fidelidad visual con las plantillas Word; hoy el motor usa una aproximación programática.
 - [ ] Configurar Cloudflare Pages, variables públicas y secretos de Edge Functions sin guardarlos en Git.
 - [ ] Configurar exportación nocturna de `public` y copia externa cifrada de Storage.
+- [ ] Diseñar y aprobar la estrategia de retención y eliminación de PDFs: plazos, archivado externo, ejecución segura, auditoría y recuperación antes de activar borrado automático.
 
 La primera versión no incluye descuentos, múltiples monedas, firma digital, correo automático ni integración SUNAT.
