@@ -56,6 +56,8 @@ export function DocumentDetailPage() {
   const canVoid =
     profile?.role === 'admin' &&
     Boolean(document && ['generated', 'sent'].includes(document.status));
+  const hasTotals = document?.total_usd != null;
+  const hasIgv = document?.type === 'proforma' || document?.apply_igv;
   const action = useMutation({
     mutationFn: async (
       kind: 'generate' | 'preview' | 'share' | 'download' | 'duplicate' | 'sent' | 'void',
@@ -82,6 +84,10 @@ export function DocumentDetailPage() {
       if (kind === 'duplicate' && typeof result === 'string') navigate(`/documents/${result}`);
       void client.invalidateQueries({ queryKey: ['document', id] });
       void client.invalidateQueries({ queryKey: ['documents'] });
+      if (kind === 'generate' || kind === 'void') {
+        void client.invalidateQueries({ queryKey: ['products'] });
+        void client.invalidateQueries({ queryKey: ['inventory-movements'] });
+      }
     },
     onError: (error) =>
       setMessage(error instanceof Error ? error.message : 'No se pudo completar la acción.'),
@@ -176,7 +182,7 @@ export function DocumentDetailPage() {
               <span>REF</span>
               <span>DENOMINACIÓN</span>
               <span>CATEGORÍA</span>
-              <span>{document.type === 'proforma' ? 'KG / TOTAL' : 'USD / KG'}</span>
+              <span>{hasTotals ? 'KG / TOTAL' : 'USD / KG'}</span>
             </div>
             {items.map((item) => (
               <div className="detail-table-row" key={item.id}>
@@ -184,23 +190,25 @@ export function DocumentDetailPage() {
                 <span>{item.denomination_snapshot}</span>
                 <span>{item.category_snapshot}</span>
                 <span>
-                  {document.type === 'proforma'
+                  {hasTotals
                     ? `${item.quantity_kg ?? '—'} kg · USD ${item.total_usd ?? '—'}`
                     : `USD ${item.unit_price_usd ?? '—'}`}
                 </span>
               </div>
             ))}
           </div>
-          {document.type === 'proforma' && (
+          {hasTotals && (
             <div className="detail-totals">
               <div>
                 <span>Subtotal</span>
                 <strong>USD {document.subtotal_usd}</strong>
               </div>
-              <div>
-                <span>IGV</span>
-                <strong>USD {document.tax_usd}</strong>
-              </div>
+              {hasIgv && (
+                <div>
+                  <span>IGV</span>
+                  <strong>USD {document.tax_usd}</strong>
+                </div>
+              )}
               <div className="total">
                 <span>Total</span>
                 <strong>USD {document.total_usd}</strong>
@@ -261,7 +269,7 @@ export function DocumentDetailPage() {
           <div className="detail-meta">
             <span>Tipo</span>
             <strong>
-              {document.type === 'proposal' ? 'Propuesta económica' : 'Proforma económica'}
+              {document.type === 'proposal' ? 'Cotización' : 'Confirmación de pedido'}
             </strong>
             <span>Creado</span>
             <strong>

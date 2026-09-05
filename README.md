@@ -1,9 +1,9 @@
-# Generador FRAVE de Proformas y Propuestas
+# Generador FRAVE de Cotizaciones y Confirmaciones de Pedido
 
 Aplicación interna para preparar dos tipos de documentos comerciales en PDF:
 
-- **Propuesta económica:** productos, categorías y precios, sin subtotales, IGV ni total.
-- **Proforma económica:** cantidades, precios, IGV, subtotales y total general.
+- **Cotización:** muestra precios y permite cantidades opcionales. Solo calcula subtotal, IGV y total cuando todas las líneas tienen cantidad; el IGV se puede desactivar para cada cotización.
+- **Confirmación de pedido:** exige cantidades, calcula IGV y total, y descuenta stock en kg de manera transaccional al emitirse.
 
 El frontend usa React, TypeScript y Vite. El backend utiliza Supabase PostgreSQL, Auth, Edge Functions y Storage privado. La composición del PDF está versionada en código y no depende de fórmulas de hojas de cálculo.
 
@@ -14,7 +14,7 @@ El frontend usa React, TypeScript y Vite. El backend utiliza Supabase PostgreSQL
 - Dashboard, historial y constructor documental por pasos.
 - Administración de categorías, productos, variantes, clientes, contactos, direcciones, bancos, configuración e invitaciones.
 - Cálculos decimales con redondeo por línea y pruebas Vitest.
-- Migración SQL con RLS, numeración transaccional, snapshots, auditoría e inmutabilidad.
+- Migración SQL con RLS, numeración transaccional, snapshots, auditoría, inmutabilidad y libro de movimientos de stock.
 - Edge Functions para preview, generación, enlaces firmados y administración.
 - Asistente de migración repetible para Excel históricos.
 
@@ -136,11 +136,12 @@ Como administrador:
 
 1. Abre **Administración > Catálogo**.
 2. Crea una categoría.
-3. Crea productos con SKU, denominación y precio USD/kg.
+3. Crea productos con SKU, denominación, precio USD/kg y stock inicial en kg.
 4. Añade variantes si cambia la denominación o el precio.
 5. En **Clientes**, registra razón social y RUC de 11 dígitos.
 6. En **Configuración > Opciones comerciales**, registra las formas de pago y entrega reutilizables.
 7. Configura empresa y bancos antes de emitir PDFs definitivos. En el generador, pago y entrega se seleccionan desde combos.
+8. Usa **Control de stock** para ajustes manuales; cada ajuste requiere motivo y queda registrado.
 
 ## Migración de datos históricos
 
@@ -215,8 +216,8 @@ No uses `git add -f` sobre archivos ignorados con datos reales.
 - [Arquitectura](docs/arquitectura.md)
 - [Operación](docs/operacion.md)
 - [Pruebas manuales](docs/pruebas-manuales.md)
-- [Flujo de propuesta](docs/flujo-propuesta.md)
-- [Flujo de proforma](docs/flujo-proforma.md)
+- [Flujo de cotización](docs/flujo-propuesta.md)
+- [Flujo de confirmación](docs/flujo-proforma.md)
 - [Despliegue Cloudflare](docs/despliegue-cloudflare.md)
 - [Migración histórica](migration/README.md)
 - [Pendientes](docs/pendientes.md)

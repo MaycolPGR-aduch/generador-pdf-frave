@@ -68,7 +68,7 @@ export function calculateDocumentTotals(
 } {
   const lines = items.map((item) => {
     if (!item.quantityKg)
-      throw new Error('Cada ítem debe tener cantidad para calcular una proforma');
+      throw new Error('Cada ítem debe tener cantidad para calcular los totales');
     const amounts = calculateLineAmounts(item.quantityKg, item.unitPriceUsd, taxRate);
     return {
       subtotalUsd: centsToMoney(amounts.subtotalCents),

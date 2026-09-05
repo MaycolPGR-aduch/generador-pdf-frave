@@ -14,6 +14,7 @@ import type {
   ClientContact,
   CommercialOption,
   CommercialOptionType,
+  InventoryMovement,
 } from './types';
 
 function requireSupabase() {
@@ -54,13 +55,35 @@ export async function listProducts(): Promise<Product[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from('products')
-    .select('id, sku, name, category_id, unit_price_usd, active, product_categories(name)')
+    .select(
+      'id, sku, name, category_id, unit_price_usd, stock_kg, active, product_categories(name)',
+    )
     .eq('active', true)
     .order('name');
   if (error) throw error;
   return (data ?? []).map((product) => ({
     ...product,
     unit_price_usd: String(product.unit_price_usd),
+    stock_kg: String(product.stock_kg),
+  })) as Product[];
+}
+
+export async function listLowStockProducts(thresholdKg: string): Promise<Product[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('products')
+    .select(
+      'id, sku, name, category_id, unit_price_usd, stock_kg, active, product_categories(name)',
+    )
+    .eq('active', true)
+    .lte('stock_kg', thresholdKg)
+    .order('stock_kg')
+    .order('name');
+  if (error) throw error;
+  return (data ?? []).map((product) => ({
+    ...product,
+    unit_price_usd: String(product.unit_price_usd),
+    stock_kg: String(product.stock_kg),
   })) as Product[];
 }
 
@@ -123,6 +146,7 @@ export async function createProduct(input: {
   name: string;
   categoryId: string;
   unitPriceUsd: string;
+  initialStockKg: string;
 }): Promise<Product> {
   const client = requireSupabase();
   const { data, error } = await client
@@ -132,11 +156,78 @@ export async function createProduct(input: {
       name: input.name.trim(),
       category_id: input.categoryId,
       unit_price_usd: input.unitPriceUsd,
+      stock_kg: input.initialStockKg || '0',
     })
     .select('*, product_categories(name)')
     .single();
   if (error) throw error;
-  return { ...data, unit_price_usd: String(data.unit_price_usd) } as Product;
+  return {
+    ...data,
+    unit_price_usd: String(data.unit_price_usd),
+    stock_kg: String(data.stock_kg),
+  } as Product;
+}
+
+export async function updateProduct(input: {
+  id: string;
+  sku: string;
+  name: string;
+  categoryId: string;
+  unitPriceUsd: string;
+}): Promise<Product> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('products')
+    .update({
+      sku: input.sku.trim(),
+      name: input.name.trim(),
+      category_id: input.categoryId,
+      unit_price_usd: input.unitPriceUsd,
+    })
+    .eq('id', input.id)
+    .select('*, product_categories(name)')
+    .single();
+  if (error) throw error;
+  return {
+    ...data,
+    unit_price_usd: String(data.unit_price_usd),
+    stock_kg: String(data.stock_kg),
+  } as Product;
+}
+
+export async function adjustProductStock(input: {
+  productId: string;
+  quantityDeltaKg: string;
+  reason: string;
+}): Promise<Product> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('adjust_product_stock', {
+    p_product_id: input.productId,
+    p_quantity_delta_kg: input.quantityDeltaKg,
+    p_reason: input.reason.trim(),
+  });
+  if (error) throw error;
+  return {
+    ...data,
+    unit_price_usd: String(data.unit_price_usd),
+    stock_kg: String(data.stock_kg),
+  } as Product;
+}
+
+export async function listInventoryMovements(): Promise<InventoryMovement[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('inventory_movements')
+    .select('*, products(sku, name), documents(number)')
+    .order('created_at', { ascending: false })
+    .limit(40);
+  if (error) throw error;
+  return (data ?? []).map((movement) => ({
+    ...movement,
+    quantity_delta_kg: String(movement.quantity_delta_kg),
+    stock_before_kg: String(movement.stock_before_kg),
+    stock_after_kg: String(movement.stock_after_kg),
+  })) as InventoryMovement[];
 }
 
 export async function createVariant(input: {
@@ -158,6 +249,30 @@ export async function createVariant(input: {
   return data as ProductVariant;
 }
 
+export async function updateVariant(input: {
+  id: string;
+  productId: string;
+  name: string;
+  priceOverrideUsd?: string;
+}): Promise<ProductVariant> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('product_variants')
+    .update({
+      product_id: input.productId,
+      name: input.name.trim(),
+      price_override_usd: input.priceOverrideUsd?.trim() || null,
+    })
+    .eq('id', input.id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return {
+    ...data,
+    price_override_usd: data.price_override_usd == null ? null : String(data.price_override_usd),
+  } as ProductVariant;
+}
+
 export async function createClient(input: {
   legalName: string;
   tradeName?: string;
@@ -171,6 +286,27 @@ export async function createClient(input: {
       trade_name: input.tradeName?.trim() || null,
       tax_id: input.taxId.trim(),
     })
+    .select('id, legal_name, trade_name, tax_id, active')
+    .single();
+  if (error) throw error;
+  return data as Client;
+}
+
+export async function updateClient(input: {
+  id: string;
+  legalName: string;
+  tradeName?: string;
+  taxId: string;
+}): Promise<Client> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('clients')
+    .update({
+      legal_name: input.legalName.trim(),
+      trade_name: input.tradeName?.trim() || null,
+      tax_id: input.taxId.trim(),
+    })
+    .eq('id', input.id)
     .select('id, legal_name, trade_name, tax_id, active')
     .single();
   if (error) throw error;
@@ -260,6 +396,7 @@ export async function updateCompanySettings(input: {
   taxId: string;
   taxRate: string;
   defaultValidityDays: number;
+  lowStockThresholdKg: string;
   primaryAddress: string;
   footerAddress: string;
   location?: string;
@@ -276,6 +413,7 @@ export async function updateCompanySettings(input: {
       tax_id: input.taxId,
       tax_rate: input.taxRate,
       default_validity_days: input.defaultValidityDays,
+      low_stock_threshold_kg: input.lowStockThresholdKg,
       primary_address: input.primaryAddress,
       footer_address: input.footerAddress,
       location: input.location,
@@ -356,6 +494,7 @@ export async function createDraft(input: DocumentDraftInput, userId: string): Pr
       address_id: input.addressId ?? null,
       payment_method: input.paymentMethod,
       delivery_method: input.deliveryMethod,
+      apply_igv: input.applyIgv,
       valid_until: input.validUntil,
       considerations: input.considerations,
     })
@@ -391,6 +530,7 @@ export async function updateDraft(
       client_id: input.clientId,
       payment_method: input.paymentMethod,
       delivery_method: input.deliveryMethod,
+      apply_igv: input.applyIgv,
       valid_until: input.validUntil,
       considerations: input.considerations,
     })

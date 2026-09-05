@@ -33,9 +33,14 @@ export function validateDocumentDraft(input: DocumentDraftInput): ValidationIssu
     }
     if (
       input.type === 'proforma' &&
-      (!item.quantityKg || !/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(item.quantityKg))
+      (!item.quantityKg ||
+        !/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(item.quantityKg) ||
+        Number(item.quantityKg) <= 0)
     ) {
-      issues.push({ path: `${path}.quantityKg`, message: 'Cantidad kg inválida' });
+      issues.push({
+        path: `${path}.quantityKg`,
+        message: 'La confirmación de pedido requiere una cantidad en kg válida',
+      });
     }
   });
   return issues;

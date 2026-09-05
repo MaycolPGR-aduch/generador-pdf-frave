@@ -404,6 +404,25 @@ h3 {
   background: #edf7f1;
   color: #3c906f;
 }
+.low-stock-alert {
+  align-items: center;
+  background: #fff5e8;
+  border: 1px solid #f5c88f;
+  border-radius: 10px;
+  color: #79430f;
+  display: flex;
+  gap: 13px;
+  margin: 0 0 22px;
+  padding: 14px 16px;
+}
+.low-stock-alert > div {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+}
+.low-stock-alert span {
+  font-size: 0.76rem;
+}
 .panel {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -497,10 +516,34 @@ h3 {
   margin-top: 17px;
   padding-top: 21px;
 }
+.admin-workspace {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 16px;
+  padding: 0 18px 16px;
+}
+.admin-workspace summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 750;
+  padding: 15px 0;
+}
+.admin-workspace .admin-form {
+  margin-top: 0;
+}
 .catalog-list-empty,
 .filter-note {
   color: var(--muted);
   font-size: 0.76rem;
+}
+.pagination {
+  align-items: center;
+  display: flex;
+  font-size: 0.76rem;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 .catalog-list-empty {
   background: #fcfbfa;
@@ -947,6 +990,36 @@ textarea {
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
+}
+.price-cell small {
+  color: #8c837c;
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 600;
+  margin-top: 3px;
+}
+.checkbox-field {
+  align-items: flex-start;
+  background: #fff8f2;
+  border: 1px solid #f5d4bc;
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+  padding: 12px;
+}
+.checkbox-field input {
+  accent-color: var(--orange);
+  margin: 3px 0 0;
+  width: auto;
+}
+.checkbox-field span {
+  display: grid;
+  gap: 2px;
+}
+.checkbox-field small {
+  color: var(--muted);
+  font-weight: 400;
 }
 .builder-summary {
   padding: 23px;

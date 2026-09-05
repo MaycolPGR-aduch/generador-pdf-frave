@@ -37,7 +37,10 @@ export function LoginPage() {
             <span>FRAVE</span>
           </div>
           <h1>Documentos comerciales, sin fricción.</h1>
-          <p>Un espacio sencillo para preparar proformas y propuestas con la identidad de FRAVE.</p>
+          <p>
+            Un espacio sencillo para preparar cotizaciones y confirmaciones con la identidad de
+            FRAVE.
+          </p>
           <div className="feature-list">
             <span>
               <ArrowRight size={15} />

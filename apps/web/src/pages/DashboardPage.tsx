@@ -6,6 +6,7 @@ import {
   FileCheck2,
   FilePlus2,
   FileWarning,
+  AlertTriangle,
   MoreHorizontal,
   RotateCcw,
   Search,
@@ -13,7 +14,14 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { duplicateDocument, listDocuments, markDocumentSent } from '../lib/api';
+import {
+  duplicateDocument,
+  listDocuments,
+  listLowStockProducts,
+  loadCompanySettings,
+  markDocumentSent,
+} from '../lib/api';
+import { formatDecimal } from '@frave/domain';
 import type { DocumentRow } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -25,7 +33,10 @@ const statusLabels: Record<string, string> = {
   sent: 'Enviado',
   void: 'Anulado',
 };
-const typeLabels: Record<string, string> = { proposal: 'Propuesta', proforma: 'Proforma' };
+const typeLabels: Record<string, string> = {
+  proposal: 'Cotización',
+  proforma: 'Confirmación de pedido',
+};
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('es-PE', {
@@ -80,9 +91,7 @@ function DocumentRowView({
         </span>
       </div>
       <div className="document-date">{formatDate(document.created_at)}</div>
-      {document.type === 'proforma' && document.total_usd && (
-        <div className="document-amount">USD {document.total_usd}</div>
-      )}
+      {document.total_usd && <div className="document-amount">USD {document.total_usd}</div>}
       <div className="row-actions">
         <button
           className="icon-button"
@@ -118,6 +127,11 @@ export function DashboardPage() {
   const [documentFrom, setDocumentFrom] = useState('');
   const [documentTo, setDocumentTo] = useState('');
   const query = useQuery({ queryKey: ['documents'], queryFn: listDocuments });
+  const settings = useQuery({ queryKey: ['settings'], queryFn: loadCompanySettings });
+  const lowStock = useQuery({
+    queryKey: ['low-stock', settings.data?.low_stock_threshold_kg],
+    queryFn: () => listLowStockProducts(settings.data?.low_stock_threshold_kg ?? '5'),
+  });
   const docs = query.data ?? [];
   const filteredDocs = useMemo(() => {
     const search = normalizeSearch(documentSearch);
@@ -189,7 +203,7 @@ export function DashboardPage() {
             Hola, {(profile?.full_name ?? 'equipo FRAVE').split(' ')[0]}{' '}
             <span className="heading-spark">✦</span>
           </h1>
-          <p className="muted">Todo lo que necesitas para tu próxima propuesta está aquí.</p>
+          <p className="muted">Todo lo que necesitas para tu próxima cotización está aquí.</p>
         </div>
         <Link to="/documents/new" className="button primary">
           <FilePlus2 size={17} />
@@ -222,6 +236,27 @@ export function DashboardPage() {
           <small>Este espacio de trabajo</small>
         </div>
       </div>
+      {lowStock.data?.length ? (
+        <section className="low-stock-alert" aria-live="polite">
+          <AlertTriangle size={20} />
+          <div>
+            <strong>
+              Stock bajo: {lowStock.data.length} producto{lowStock.data.length === 1 ? '' : 's'}
+            </strong>
+            <span>
+              Umbral: {formatDecimal(settings.data?.low_stock_threshold_kg ?? '5', 3)} kg.{' '}
+              {lowStock.data
+                .slice(0, 4)
+                .map((product) => `${product.sku} (${formatDecimal(product.stock_kg, 3)} kg)`)
+                .join(' · ')}
+              {lowStock.data.length > 4 ? ' · …' : ''}
+            </span>
+          </div>
+          <Link className="button secondary small" to="/admin">
+            Gestionar stock
+          </Link>
+        </section>
+      ) : null}
       <section className="panel document-panel">
         <div className="panel-header">
           <div>
@@ -249,8 +284,8 @@ export function DashboardPage() {
               onChange={(event) => setDocumentType(event.target.value as DocumentRow['type'] | '')}
             >
               <option value="">Todos</option>
-              <option value="proposal">Propuestas</option>
-              <option value="proforma">Proformas</option>
+              <option value="proposal">Cotizaciones</option>
+              <option value="proforma">Confirmaciones de pedido</option>
             </select>
           </label>
           <label className="filter-field">
@@ -305,7 +340,7 @@ export function DashboardPage() {
           <div className="empty-state compact">
             <FileCheck2 size={30} />
             <h3>Aún no hay documentos</h3>
-            <p>Comienza creando una propuesta o proforma.</p>
+            <p>Comienza creando una cotización o confirmación de pedido.</p>
             <Link className="button secondary" to="/documents/new">
               Crear el primero
             </Link>

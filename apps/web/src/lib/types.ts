@@ -44,6 +44,7 @@ export type Product = {
   name: string;
   category_id: string;
   unit_price_usd: string;
+  stock_kg: string;
   active: boolean;
   product_categories?: Array<{ name: string }> | null;
 };
@@ -56,6 +57,7 @@ export type CompanySettings = {
   tax_id: string;
   tax_rate: string;
   default_validity_days: number;
+  low_stock_threshold_kg: string;
   primary_address: string;
   footer_address: string;
   location: string;
@@ -111,12 +113,27 @@ export type DocumentRow = {
   delivery_method: string;
   valid_until: string;
   considerations: string[];
+  apply_igv: boolean;
   subtotal_usd: string | null;
   tax_usd: string | null;
   total_usd: string | null;
   created_at: string;
   updated_at: string;
   clients?: Pick<Client, 'legal_name' | 'trade_name' | 'tax_id'> | null;
+};
+
+export type InventoryMovement = {
+  id: string;
+  product_id: string;
+  document_id: string | null;
+  movement_type: 'opening_balance' | 'adjustment' | 'confirmation_issue' | 'confirmation_void';
+  quantity_delta_kg: string;
+  stock_before_kg: string;
+  stock_after_kg: string;
+  reason: string;
+  created_at: string;
+  products?: Pick<Product, 'sku' | 'name'> | null;
+  documents?: Pick<DocumentRow, 'number'> | null;
 };
 
 export type DocumentItemRow = {

@@ -7,7 +7,7 @@ import {
 } from './money';
 
 describe('money calculations', () => {
-  it('calculates a proforma line using integer cents', () => {
+  it('calculates a document line using integer cents', () => {
     expect(calculateLineAmounts('2', '17.4', '0.18')).toEqual({
       subtotalCents: 3480,
       taxCents: 626,

@@ -16,6 +16,7 @@ import {
   listCommercialOptions,
   listProducts,
   listVariants,
+  loadCompanySettings,
   updateDraft,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
@@ -29,6 +30,7 @@ const itemSchema = z.object({
 const schema = z
   .object({
     type: z.enum(['proposal', 'proforma']),
+    applyIgv: z.boolean(),
     clientId: z.string().min(1, 'Selecciona un cliente'),
     contactId: z.string().optional(),
     addressId: z.string().optional(),
@@ -42,7 +44,8 @@ const schema = z
     values.items.forEach((item, index) => {
       if (
         values.type === 'proforma' &&
-        !/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(item.quantityKg ?? '')
+        (!/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(item.quantityKg ?? '') ||
+          Number(item.quantityKg) <= 0)
       ) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -68,6 +71,7 @@ export function DocumentBuilderPage() {
   const clients = useQuery({ queryKey: ['clients'], queryFn: listClients });
   const products = useQuery({ queryKey: ['products'], queryFn: listProducts });
   const variants = useQuery({ queryKey: ['variants'], queryFn: () => listVariants() });
+  const settings = useQuery({ queryKey: ['settings'], queryFn: loadCompanySettings });
   const commercialOptions = useQuery({
     queryKey: ['commercial-options'],
     queryFn: () => listCommercialOptions(),
@@ -81,6 +85,7 @@ export function DocumentBuilderPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       type: 'proposal',
+      applyIgv: true,
       clientId: '',
       contactId: '',
       addressId: '',
@@ -109,6 +114,7 @@ export function DocumentBuilderPage() {
     const document = existing.data.document;
     form.reset({
       type: document.type,
+      applyIgv: document.apply_igv,
       clientId: document.client_id,
       contactId: document.contact_id ?? '',
       addressId: document.address_id ?? '',
@@ -125,6 +131,7 @@ export function DocumentBuilderPage() {
     });
   }, [existing.data, form]);
   const type = form.watch('type');
+  const applyIgv = form.watch('applyIgv');
   const watchedItems = form.watch('items');
   const paymentMethod = form.watch('paymentMethod');
   const deliveryMethod = form.watch('deliveryMethod');
@@ -136,8 +143,19 @@ export function DocumentBuilderPage() {
     () => commercialOptions.data?.filter((option) => option.option_type === 'delivery') ?? [],
     [commercialOptions.data],
   );
+  const hasCompleteQuantities = useMemo(
+    () =>
+      watchedItems.length > 0 &&
+      watchedItems.every(
+        (item) =>
+          /^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(item.quantityKg ?? '') &&
+          Number(item.quantityKg) > 0,
+      ),
+    [watchedItems],
+  );
+  const shouldCalculateTotals = type === 'proforma' || hasCompleteQuantities;
   const previewTotals = useMemo(() => {
-    if (type !== 'proforma') return null;
+    if (!shouldCalculateTotals) return null;
     const lines = watchedItems
       .map((item) => {
         const product = products.data?.find((p) => p.id === item.productId);
@@ -149,11 +167,24 @@ export function DocumentBuilderPage() {
       })
       .filter((line): line is { quantityKg: string; unitPriceUsd: string } => Boolean(line));
     try {
-      return lines.length ? calculateDocumentTotals(lines, '0.18').totals : null;
+      return lines.length === watchedItems.length
+        ? calculateDocumentTotals(
+            lines,
+            type === 'proforma' || applyIgv ? (settings.data?.tax_rate ?? '0.18') : '0',
+          ).totals
+        : null;
     } catch {
       return null;
     }
-  }, [products.data, type, variants.data, watchedItems]);
+  }, [
+    applyIgv,
+    products.data,
+    settings.data?.tax_rate,
+    shouldCalculateTotals,
+    type,
+    variants.data,
+    watchedItems,
+  ]);
   const save = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!user) throw new Error('Sesión no disponible');
@@ -167,13 +198,14 @@ export function DocumentBuilderPage() {
           sku: product.sku,
           denomination: variant?.name ?? product.name,
           category: product.product_categories?.[0]?.name ?? 'Sin categoría',
-          quantityKg: values.type === 'proforma' ? item.quantityKg : undefined,
+          quantityKg: item.quantityKg || undefined,
           unitPriceUsd: String(variant?.price_override_usd ?? product.unit_price_usd),
           observation: item.observation,
         };
       });
       const input = {
         type: values.type,
+        applyIgv: values.applyIgv,
         clientId: values.clientId,
         contactId: values.contactId || undefined,
         addressId: values.addressId || undefined,
@@ -246,21 +278,23 @@ export function DocumentBuilderPage() {
                 <ClipboardList size={19} />
                 <div>
                   <h2>Define el documento</h2>
-                  <p className="muted">La propuesta no muestra importes; la proforma sí.</p>
+                  <p className="muted">
+                    La cotización no afecta stock; la confirmación descuenta stock al emitirse.
+                  </p>
                 </div>
               </div>
               <div className="type-choice">
                 <label className={type === 'proposal' ? 'selected' : ''}>
                   <input type="radio" value="proposal" {...form.register('type')} />
                   <span className="choice-icon">✦</span>
-                  <strong>Propuesta económica</strong>
-                  <small>Presenta catálogo y precios, sin totales.</small>
+                  <strong>Cotización</strong>
+                  <small>Cantidades opcionales; calcula totales si todas están completas.</small>
                 </label>
                 <label className={type === 'proforma' ? 'selected' : ''}>
                   <input type="radio" value="proforma" {...form.register('type')} />
                   <span className="choice-icon">$</span>
-                  <strong>Proforma económica</strong>
-                  <small>Incluye cantidades, IGV y total.</small>
+                  <strong>Confirmación de pedido</strong>
+                  <small>Requiere cantidades y descuenta stock al emitir.</small>
                 </label>
               </div>
               <label>
@@ -359,6 +393,15 @@ export function DocumentBuilderPage() {
               <p className="field-help">
                 ¿Necesitas otra modalidad? Un administrador puede agregarla en Configuración.
               </p>
+              {type === 'proposal' && (
+                <label className="checkbox-field">
+                  <input type="checkbox" {...form.register('applyIgv')} />
+                  <span>
+                    <strong>Aplicar IGV a esta cotización</strong>
+                    <small>Se congela al emitir el documento.</small>
+                  </span>
+                </label>
+              )}
               <label>
                 Consideraciones <span className="label-hint">una por línea</span>
                 <textarea
@@ -378,7 +421,7 @@ export function DocumentBuilderPage() {
                     Productos <span className="count-badge">{fields.length}/100</span>
                   </h2>
                   <p className="muted">
-                    El precio se toma del catálogo y se congela en el borrador.
+                    El precio y la disponibilidad se toman del catálogo y se congelan al emitir.
                   </p>
                 </div>
                 <button
@@ -397,7 +440,7 @@ export function DocumentBuilderPage() {
                 <div className="item-head">
                   <span>#</span>
                   <span>Producto</span>
-                  <span>{type === 'proforma' ? 'Kg/Neto' : 'Dato interno (opcional)'}</span>
+                  <span>{type === 'proforma' ? 'Kg/Neto' : 'Kg/Neto (opcional)'}</span>
                   <span>Precio USD/kg</span>
                   <span />
                 </div>
@@ -415,7 +458,7 @@ export function DocumentBuilderPage() {
                           <option value="">Seleccionar…</option>
                           {products.data?.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.sku} · {p.name}
+                              {p.sku} · {p.name} · Stock {formatDecimal(p.stock_kg, 3)} kg
                             </option>
                           ))}
                         </select>
@@ -444,6 +487,7 @@ export function DocumentBuilderPage() {
                         {product
                           ? `USD ${formatDecimal(variant?.price_override_usd ?? product.unit_price_usd, 2)}`
                           : '—'}
+                        {product && <small>Stock: {formatDecimal(product.stock_kg, 3)} kg</small>}
                       </span>
                       <button
                         type="button"
@@ -470,9 +514,7 @@ export function DocumentBuilderPage() {
                   <ClipboardList size={19} />
                 </div>
                 <div>
-                  <strong>
-                    {type === 'proposal' ? 'Propuesta económica' : 'Proforma económica'}
-                  </strong>
+                  <strong>{type === 'proposal' ? 'Cotización' : 'Confirmación de pedido'}</strong>
                   <span>Se guardará como borrador. El número se asigna al generar.</span>
                 </div>
               </div>
@@ -527,17 +569,21 @@ export function DocumentBuilderPage() {
           <strong>Paso {step} de 4</strong>
           <p className="muted">Puedes volver a cualquier paso antes de guardar.</p>
           <div className="summary-divider" />
-          {type === 'proforma' ? (
+          {shouldCalculateTotals ? (
             <div className="summary-total">
               <span>Total preliminar</span>
               <strong>USD {previewTotals?.totalUsd ?? '—'}</strong>
-              <small>IGV configurable · 18 % inicial</small>
+              <small>
+                {type === 'proposal' && !applyIgv
+                  ? 'IGV no aplicado a esta cotización'
+                  : 'IGV configurable según la configuración comercial'}
+              </small>
             </div>
           ) : (
             <div className="summary-total">
-              <span>Visibilidad de precios</span>
-              <strong>Sin totales</strong>
-              <small>La propuesta muestra USD/kg por producto.</small>
+              <span>Totales pendientes</span>
+              <strong>Completa los Kg</strong>
+              <small>La cotización mostrará USD/kg hasta tener todas las cantidades.</small>
             </div>
           )}
           {step < 4 ? (

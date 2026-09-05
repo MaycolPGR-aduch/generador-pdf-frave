@@ -7,7 +7,7 @@ import {
   type PDFPage,
 } from 'npm:pdf-lib@1.17.1';
 
-export const TEMPLATE_VERSION = 'frave-pdf-v1.0.0';
+export const TEMPLATE_VERSION = 'frave-pdf-v1.1.0';
 type JsonRecord = Record<string, unknown>;
 export type PdfItem = {
   sku: string;
@@ -21,6 +21,7 @@ export type PdfItem = {
 };
 export type PdfData = {
   type: 'proposal' | 'proforma';
+  applyIgv: boolean;
   number: string | null;
   validUntil: string;
   client: JsonRecord;
@@ -192,7 +193,9 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
   header(page, regular, bold, data, draft);
   let y = 660;
   const { width } = page.getSize();
-  const title = data.type === 'proposal' ? 'PROPUESTA ECONÓMICA' : 'PROFORMA ECONÓMICA';
+  const hasTotals = data.totalUsd !== null;
+  const hasIgv = data.type === 'proforma' || data.applyIgv;
+  const title = data.type === 'proposal' ? 'COTIZACIÓN' : 'CONFIRMACIÓN DE PEDIDO';
   page.drawText(title, { x: margin, y, size: 16, font: bold, color: ink });
   page.drawText(data.number ?? 'Documento en borrador', {
     x: width - 180,
@@ -245,7 +248,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
     { label: 'CATEGORÍA', x: 355, width: 105 },
     { label: 'USD/KG', x: 488, width: 70 },
   ];
-  const proformaColumns = [
+  const confirmationColumns = [
     { label: 'REF', x: 47, width: 44 },
     { label: 'DENOMINACIÓN', x: 94, width: 174 },
     { label: 'CATEGORÍA', x: 271, width: 75 },
@@ -254,12 +257,24 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
     { label: 'IGV', x: 471, width: 43 },
     { label: 'USD/TOTAL', x: 517, width: 49 },
   ];
-  const columns = data.type === 'proposal' ? proposalColumns : proformaColumns;
+  const quotationColumnsWithoutIgv = [
+    { label: 'REF', x: 47, width: 44 },
+    { label: 'DENOMINACIÓN', x: 94, width: 194 },
+    { label: 'CATEGORÍA', x: 291, width: 75 },
+    { label: 'KG/NETO', x: 369, width: 59 },
+    { label: 'USD/KG', x: 431, width: 70 },
+    { label: 'USD/TOTAL', x: 505, width: 61 },
+  ];
+  const columns = hasTotals
+    ? hasIgv
+      ? confirmationColumns
+      : quotationColumnsWithoutIgv
+    : proposalColumns;
   tableHeader(page, bold, columns, y);
   y -= 22;
   for (const item of data.items.filter((row) => row.sku || row.denomination)) {
-    const denomLines = wrap(regular, item.denomination, data.type === 'proposal' ? 240 : 168, 7.4);
-    const categoryLines = wrap(regular, item.category, data.type === 'proposal' ? 100 : 70, 7.2);
+    const denomLines = wrap(regular, item.denomination, !hasTotals ? 240 : hasIgv ? 168 : 190, 7.4);
+    const categoryLines = wrap(regular, item.category, !hasTotals ? 100 : 70, 7.2);
     const rowHeight = Math.max(20, Math.max(denomLines.length, categoryLines.length) * 10 + 8);
     if (y - rowHeight < 70) {
       page = pdf.addPage([612, 792]);
@@ -304,7 +319,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
         color: muted,
       }),
     );
-    if (data.type === 'proposal')
+    if (!hasTotals)
       page.drawText(money(item.unitPriceUsd).replace('USD ', ''), {
         x: columns[3].x,
         y: baseY,
@@ -312,7 +327,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
         font: bold,
         color: ink,
       });
-    else {
+    else if (hasIgv) {
       page.drawText(item.quantityKg ?? '—', {
         x: columns[3].x,
         y: baseY,
@@ -341,6 +356,28 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
         font: bold,
         color: ink,
       });
+    } else {
+      page.drawText(item.quantityKg ?? '—', {
+        x: columns[3].x,
+        y: baseY,
+        size: 7.2,
+        font: regular,
+        color: ink,
+      });
+      page.drawText(money(item.unitPriceUsd).replace('USD ', ''), {
+        x: columns[4].x,
+        y: baseY,
+        size: 7.2,
+        font: regular,
+        color: ink,
+      });
+      page.drawText(money(item.totalUsd).replace('USD ', ''), {
+        x: columns[5].x,
+        y: baseY,
+        size: 7.2,
+        font: bold,
+        color: ink,
+      });
     }
     y -= rowHeight;
     page.drawLine({
@@ -350,7 +387,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
       color: light,
     });
   }
-  if (data.type === 'proforma') {
+  if (hasTotals) {
     if (y < 165) {
       page = pdf.addPage([612, 792]);
       pages.push(page);
@@ -360,27 +397,29 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
     y -= 14;
     page.drawText('RESUMEN', { x: 375, y, size: 7.5, font: bold, color: accent });
     y -= 16;
-    [
+    const totalRows: Array<[string, string | null]> = [
       ['Subtotal', data.subtotalUsd],
-      ['IGV', data.taxUsd],
       ['TOTAL', data.totalUsd],
-    ].forEach(([label, amount], index) => {
+    ];
+    if (hasIgv) totalRows.splice(1, 0, ['IGV', data.taxUsd]);
+    totalRows.forEach(([label, amount], index) => {
+      const isTotal = label === 'TOTAL';
       page.drawText(label, {
         x: 375,
         y: y - index * 17,
-        size: index === 2 ? 9 : 8,
-        font: index === 2 ? bold : regular,
-        color: index === 2 ? ink : muted,
+        size: isTotal ? 9 : 8,
+        font: isTotal ? bold : regular,
+        color: isTotal ? ink : muted,
       });
       page.drawText(money(amount), {
         x: 490,
         y: y - index * 17,
-        size: index === 2 ? 9 : 8,
+        size: isTotal ? 9 : 8,
         font: bold,
-        color: index === 2 ? accent : ink,
+        color: isTotal ? accent : ink,
       });
     });
-    y -= 72;
+    y -= hasIgv ? 72 : 55;
   }
   if (y < 135) {
     page = pdf.addPage([612, 792]);

@@ -53,6 +53,8 @@ export interface CommercialSettings {
 
 export interface DocumentDraftInput {
   type: DocumentType;
+  /** Cotizaciones may omit IGV; confirmations always calculate it server-side. */
+  applyIgv: boolean;
   clientId: string;
   sellerId: string;
   contactId?: string;

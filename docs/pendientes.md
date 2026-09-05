@@ -9,7 +9,7 @@ La base del producto ya está implementada. Antes de usar datos operativos se de
 - [ ] Ejecutar pgTAP/RLS y Playwright contra un proyecto Supabase de desarrollo.
 - [ ] Añadir autoguardado remoto con control de versión optimista si el piloto confirma que el guardado explícito no es suficiente.
 - [ ] Colocar los Excel históricos en `migration/input/`, revisar `migration/output/report.json` y resolver conflictos antes de `--apply`.
-- [ ] Comparar propuestas y proformas generadas con los casos aprobados de las plantillas originales.
+- [ ] Comparar cotizaciones y confirmaciones de pedido generadas con los casos aprobados de las plantillas originales.
 - [ ] Extraer el logo aprobado y ajustar fuentes/espaciado para lograr fidelidad visual con las plantillas Word; hoy el motor usa una aproximación programática.
 - [ ] Configurar Cloudflare Pages, variables públicas y secretos de Edge Functions sin guardarlos en Git.
 - [ ] Configurar exportación nocturna de `public` y copia externa cifrada de Storage.

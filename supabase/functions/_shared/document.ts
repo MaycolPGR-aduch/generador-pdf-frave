@@ -56,6 +56,7 @@ export async function loadPdfData(admin: SupabaseClient, documentId: string): Pr
   const selectedBanks = Array.isArray(snapshotBanks) ? snapshotBanks : (banks ?? []);
   return {
     type: document.type,
+    applyIgv: document.apply_igv !== false,
     number: document.number,
     validUntil: document.valid_until,
     client: {
