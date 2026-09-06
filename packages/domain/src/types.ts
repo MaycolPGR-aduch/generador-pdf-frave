@@ -17,6 +17,7 @@ export type UserRole = (typeof userRoles)[number];
 export interface DocumentItemInput {
   productId?: string;
   variantId?: string;
+  sourceQuoteItemId?: string;
   sku: string;
   denomination: string;
   category: string;

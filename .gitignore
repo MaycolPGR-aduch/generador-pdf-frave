@@ -39,6 +39,7 @@ migration/output/
 .clasprc.json
 .vscode/
 .idea/
+*.code-workspace
 *.log
 Thumbs.db
 Desktop.ini

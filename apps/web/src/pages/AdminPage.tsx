@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Database,
+  Download,
+  ListTree,
   PackageSearch,
+  Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
   Settings2,
   UsersRound,
+  X,
 } from 'lucide-react';
 import {
   adjustProductStock,
@@ -23,6 +27,7 @@ import {
   inviteUser,
   listCategories,
   listClients,
+  listClientDocumentsForExport,
   listCommercialOptions,
   listProducts,
   listVariants,
@@ -35,6 +40,7 @@ import {
   updateVariant,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
+import { exportClientDocumentsToExcel } from '../lib/clientDocumentExport';
 import type { CommercialOptionType, ProductCategory } from '../lib/types';
 import { formatDecimal } from '@frave/domain';
 
@@ -53,6 +59,26 @@ type SettingsForm = {
   district: string;
   country: string;
   brandColor: string;
+};
+
+type ProductForm = {
+  sku: string;
+  name: string;
+  categoryId: string;
+  unitPriceUsd: string;
+  initialStockKg: string;
+};
+
+type VariantForm = {
+  productId: string;
+  name: string;
+  priceOverrideUsd: string;
+};
+
+type ClientForm = {
+  legalName: string;
+  tradeName: string;
+  taxId: string;
 };
 
 const emptySettings: SettingsForm = {
@@ -93,13 +119,181 @@ function productCategoryName(
   );
 }
 
+function ProductFields({
+  value,
+  categories,
+  onChange,
+  editing,
+}: {
+  value: ProductForm;
+  categories: ProductCategory[];
+  onChange: (value: ProductForm) => void;
+  editing?: boolean;
+}) {
+  return (
+    <div className="two-columns">
+      <label>
+        SKU
+        <input
+          required
+          value={value.sku}
+          onChange={(event) => onChange({ ...value, sku: event.target.value })}
+          placeholder="FR-001"
+        />
+      </label>
+      <label>
+        Denominación
+        <input
+          required
+          value={value.name}
+          onChange={(event) => onChange({ ...value, name: event.target.value })}
+          placeholder="Nombre comercial"
+        />
+      </label>
+      <label>
+        Categoría
+        <select
+          required
+          value={value.categoryId}
+          onChange={(event) => onChange({ ...value, categoryId: event.target.value })}
+        >
+          <option value="">Seleccionar…</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Precio USD/kg
+        <input
+          required
+          type="number"
+          min="0"
+          step="0.0001"
+          value={value.unitPriceUsd}
+          onChange={(event) => onChange({ ...value, unitPriceUsd: event.target.value })}
+          placeholder="0.0000"
+        />
+      </label>
+      <label>
+        {editing ? 'Stock actual (kg)' : 'Stock inicial (kg)'}
+        <input
+          required
+          type="number"
+          min="0"
+          step="0.001"
+          readOnly={editing}
+          value={value.initialStockKg}
+          onChange={(event) => onChange({ ...value, initialStockKg: event.target.value })}
+          placeholder="0.000"
+        />
+        {editing && (
+          <small className="field-help">
+            El stock se modifica desde Control de stock y queda auditado.
+          </small>
+        )}
+      </label>
+    </div>
+  );
+}
+
+function VariantFields({
+  value,
+  products,
+  onChange,
+}: {
+  value: VariantForm;
+  products: Array<{ id: string; sku: string; name: string }>;
+  onChange: (value: VariantForm) => void;
+}) {
+  return (
+    <div className="two-columns">
+      <label>
+        Producto
+        <select
+          required
+          value={value.productId}
+          onChange={(event) => onChange({ ...value, productId: event.target.value })}
+        >
+          <option value="">Seleccionar…</option>
+          {products.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.sku} · {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Denominación alternativa
+        <input
+          required
+          value={value.name}
+          onChange={(event) => onChange({ ...value, name: event.target.value })}
+          placeholder="Ej. Tapa negra 500 ml"
+        />
+      </label>
+      <label>
+        Precio alternativo USD/kg
+        <input
+          type="number"
+          min="0"
+          step="0.0001"
+          value={value.priceOverrideUsd}
+          onChange={(event) => onChange({ ...value, priceOverrideUsd: event.target.value })}
+          placeholder="Opcional"
+        />
+      </label>
+    </div>
+  );
+}
+
+function ClientFields({
+  value,
+  onChange,
+}: {
+  value: ClientForm;
+  onChange: (value: ClientForm) => void;
+}) {
+  return (
+    <div className="two-columns">
+      <label>
+        Razón social
+        <input
+          required
+          value={value.legalName}
+          onChange={(event) => onChange({ ...value, legalName: event.target.value })}
+        />
+      </label>
+      <label>
+        Nombre comercial
+        <input
+          value={value.tradeName}
+          onChange={(event) => onChange({ ...value, tradeName: event.target.value })}
+        />
+      </label>
+      <label>
+        RUC
+        <input
+          required
+          pattern="[0-9]{11}"
+          value={value.taxId}
+          onChange={(event) => onChange({ ...value, taxId: event.target.value })}
+          placeholder="20123456789"
+        />
+      </label>
+    </div>
+  );
+}
+
 export function AdminPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('catalog');
   const [message, setMessage] = useState('');
   const [categoryName, setCategoryName] = useState('');
-  const [product, setProduct] = useState({
+  const [product, setProduct] = useState<ProductForm>({
     sku: '',
     name: '',
     categoryId: '',
@@ -107,24 +301,34 @@ export function AdminPage() {
     initialStockKg: '0',
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [variantViewerProductId, setVariantViewerProductId] = useState<string | null>(null);
   const [stockAdjustment, setStockAdjustment] = useState({
     productId: '',
     quantityDeltaKg: '',
     reason: '',
   });
-  const [variant, setVariant] = useState({ productId: '', name: '', priceOverrideUsd: '' });
+  const [variant, setVariant] = useState<VariantForm>({
+    productId: '',
+    name: '',
+    priceOverrideUsd: '',
+  });
   const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryId, setProductCategoryId] = useState('');
   const [variantSearch, setVariantSearch] = useState('');
   const [variantCategoryId, setVariantCategoryId] = useState('');
   const [variantProductId, setVariantProductId] = useState('');
-  const [customer, setCustomer] = useState({ legalName: '', tradeName: '', taxId: '' });
+  const [customer, setCustomer] = useState<ClientForm>({
+    legalName: '',
+    tradeName: '',
+    taxId: '',
+  });
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [productPage, setProductPage] = useState(1);
   const [variantPage, setVariantPage] = useState(1);
   const [clientPage, setClientPage] = useState(1);
   const [clientSearch, setClientSearch] = useState('');
+  const [clientExport, setClientExport] = useState({ clientId: '', from: '', to: '' });
   const [clientContact, setClientContact] = useState({
     clientId: '',
     fullName: '',
@@ -207,9 +411,9 @@ export function AdminPage() {
     return (clients.data ?? []).filter(
       (item) =>
         !search ||
-        normalizeSearch(`${item.legal_name} ${item.trade_name ?? ''} ${item.tax_id}`).includes(
-          search,
-        ),
+        normalizeSearch(
+          `${item.client_code} ${item.legal_name} ${item.trade_name ?? ''} ${item.tax_id}`,
+        ).includes(search),
     );
   }, [clientSearch, clients.data]);
   const productPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
@@ -223,6 +427,12 @@ export function AdminPage() {
   const deliveryOptions = useMemo(
     () => commercialOptions.data?.filter((option) => option.option_type === 'delivery') ?? [],
     [commercialOptions.data],
+  );
+  const variantViewerProduct = products.data?.find((item) => item.id === variantViewerProductId);
+  const editingClient = clients.data?.find((item) => item.id === editingClientId);
+  const variantViewerItems = useMemo(
+    () => (variants.data ?? []).filter((item) => item.product_id === variantViewerProductId),
+    [variantViewerProductId, variants.data],
   );
 
   function clearCatalogFilters() {
@@ -246,6 +456,11 @@ export function AdminPage() {
     });
   }
 
+  function closeProductEdit() {
+    setEditingProductId(null);
+    setProduct({ sku: '', name: '', categoryId: '', unitPriceUsd: '', initialStockKg: '0' });
+  }
+
   function startVariantEdit(item: (typeof filteredVariants)[number]) {
     setEditingVariantId(item.id);
     setVariant({
@@ -255,6 +470,11 @@ export function AdminPage() {
     });
   }
 
+  function closeVariantEdit() {
+    setEditingVariantId(null);
+    setVariant({ productId: '', name: '', priceOverrideUsd: '' });
+  }
+
   function startClientEdit(item: (typeof filteredClients)[number]) {
     setEditingClientId(item.id);
     setCustomer({
@@ -262,6 +482,11 @@ export function AdminPage() {
       tradeName: item.trade_name ?? '',
       taxId: item.tax_id,
     });
+  }
+
+  function closeClientEdit() {
+    setEditingClientId(null);
+    setCustomer({ legalName: '', tradeName: '', taxId: '' });
   }
 
   useEffect(() => {
@@ -282,6 +507,29 @@ export function AdminPage() {
     });
   }, [settings.data]);
 
+  useEffect(() => {
+    if (!editingProductId && !editingVariantId && !editingClientId && !variantViewerProductId)
+      return;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (editingProductId) {
+        setEditingProductId(null);
+        setProduct({ sku: '', name: '', categoryId: '', unitPriceUsd: '', initialStockKg: '0' });
+      }
+      if (variantViewerProductId) setVariantViewerProductId(null);
+      if (editingVariantId) {
+        setEditingVariantId(null);
+        setVariant({ productId: '', name: '', priceOverrideUsd: '' });
+      }
+      if (editingClientId) {
+        setEditingClientId(null);
+        setCustomer({ legalName: '', tradeName: '', taxId: '' });
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [editingClientId, editingProductId, editingVariantId, variantViewerProductId]);
+
   const categoryMutation = useMutation({
     mutationFn: () => createCategory(categoryName),
     onSuccess: () => {
@@ -299,8 +547,7 @@ export function AdminPage() {
         ? updateProduct({ ...product, id: editingProductId })
         : createProduct(product),
     onSuccess: () => {
-      setProduct({ sku: '', name: '', categoryId: '', unitPriceUsd: '', initialStockKg: '0' });
-      setEditingProductId(null);
+      closeProductEdit();
       setMessage('Producto guardado.');
       void queryClient.invalidateQueries({ queryKey: ['products'] });
     },
@@ -326,8 +573,7 @@ export function AdminPage() {
         ? updateVariant({ ...variant, id: editingVariantId })
         : createVariant(variant),
     onSuccess: () => {
-      setVariant({ productId: '', name: '', priceOverrideUsd: '' });
-      setEditingVariantId(null);
+      closeVariantEdit();
       setMessage('Variante guardada.');
       void queryClient.invalidateQueries({ queryKey: ['variants'] });
     },
@@ -338,14 +584,44 @@ export function AdminPage() {
   const clientMutation = useMutation({
     mutationFn: () =>
       editingClientId ? updateClient({ ...customer, id: editingClientId }) : createClient(customer),
-    onSuccess: () => {
-      setCustomer({ legalName: '', tradeName: '', taxId: '' });
-      setEditingClientId(null);
-      setMessage('Cliente guardado.');
+    onSuccess: (savedClient) => {
+      closeClientEdit();
+      setMessage(`Cliente ${savedClient.client_code} guardado.`);
       void queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
     onError: (error) =>
       setMessage(error instanceof Error ? error.message : 'No se pudo crear el cliente.'),
+  });
+
+  const clientExportMutation = useMutation({
+    mutationFn: async () => {
+      const selectedClient = clients.data?.find((item) => item.id === clientExport.clientId);
+      if (!selectedClient) throw new Error('Selecciona un cliente para exportar.');
+      if (!clientExport.from || !clientExport.to)
+        throw new Error('Indica la fecha inicial y final del período.');
+      if (clientExport.from > clientExport.to)
+        throw new Error('La fecha inicial no puede ser posterior a la fecha final.');
+
+      const documents = await listClientDocumentsForExport(clientExport);
+      if (!documents.length)
+        throw new Error('No hay documentos de este cliente en el período seleccionado.');
+
+      await exportClientDocumentsToExcel({
+        client: selectedClient,
+        from: clientExport.from,
+        to: clientExport.to,
+        documents,
+      });
+      return documents.length;
+    },
+    onSuccess: (documentCount) =>
+      setMessage(
+        `Excel descargado con ${documentCount} ${
+          documentCount === 1 ? 'documento' : 'documentos'
+        }.`,
+      ),
+    onError: (error) =>
+      setMessage(error instanceof Error ? error.message : 'No se pudo exportar el Excel.'),
   });
 
   const contactMutation = useMutation({
@@ -456,6 +732,12 @@ export function AdminPage() {
     clientMutation.mutate();
   }
 
+  function submitClientExport(event: FormEvent) {
+    event.preventDefault();
+    setMessage('');
+    clientExportMutation.mutate();
+  }
+
   function submitContact(event: FormEvent) {
     event.preventDefault();
     setMessage('');
@@ -544,7 +826,7 @@ export function AdminPage() {
             <span className="count-badge">{products.data?.length ?? '—'} productos activos</span>
           </div>
           <details className="admin-workspace" open>
-            <summary>Crear o editar productos y variantes</summary>
+            <summary>Crear productos y variantes</summary>
             <form className="admin-form" onSubmit={submitCatalog}>
               <div className="form-subheading">
                 <Plus size={15} />
@@ -569,132 +851,20 @@ export function AdminPage() {
                 <Plus size={15} />
                 Nuevo producto
               </div>
-              <div className="two-columns">
-                <label>
-                  SKU
-                  <input
-                    required
-                    value={product.sku}
-                    onChange={(event) => setProduct({ ...product, sku: event.target.value })}
-                    placeholder="FR-001"
-                  />
-                </label>
-                <label>
-                  Denominación
-                  <input
-                    required
-                    value={product.name}
-                    onChange={(event) => setProduct({ ...product, name: event.target.value })}
-                    placeholder="Nombre comercial"
-                  />
-                </label>
-                <label>
-                  Categoría
-                  <select
-                    required
-                    value={product.categoryId}
-                    onChange={(event) => setProduct({ ...product, categoryId: event.target.value })}
-                  >
-                    <option value="">Seleccionar…</option>
-                    {categories.data?.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Precio USD/kg
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={product.unitPriceUsd}
-                    onChange={(event) =>
-                      setProduct({ ...product, unitPriceUsd: event.target.value })
-                    }
-                    placeholder="0.0000"
-                  />
-                </label>
-                <label>
-                  Stock inicial (kg)
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    value={product.initialStockKg}
-                    onChange={(event) =>
-                      setProduct({ ...product, initialStockKg: event.target.value })
-                    }
-                    placeholder="0.000"
-                  />
-                </label>
-              </div>
+              <ProductFields
+                value={product}
+                categories={categories.data ?? []}
+                onChange={setProduct}
+              />
               <button className="button primary" disabled={productMutation.isPending}>
                 <Save size={15} />
-                {editingProductId ? 'Guardar cambios' : 'Crear producto'}
+                Crear producto
               </button>
-              {editingProductId && (
-                <button
-                  type="button"
-                  className="button ghost"
-                  onClick={() => {
-                    setEditingProductId(null);
-                    setProduct({
-                      sku: '',
-                      name: '',
-                      categoryId: '',
-                      unitPriceUsd: '',
-                      initialStockKg: '0',
-                    });
-                  }}
-                >
-                  Cancelar edición
-                </button>
-              )}
               <div className="form-subheading">
                 <Plus size={15} />
                 Nueva variante
               </div>
-              <div className="two-columns">
-                <label>
-                  Producto
-                  <select
-                    value={variant.productId}
-                    onChange={(event) => setVariant({ ...variant, productId: event.target.value })}
-                  >
-                    <option value="">Seleccionar…</option>
-                    {products.data?.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.sku} · {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Denominación alternativa
-                  <input
-                    value={variant.name}
-                    onChange={(event) => setVariant({ ...variant, name: event.target.value })}
-                    placeholder="Ej. Tapa negra 500 ml"
-                  />
-                </label>
-                <label>
-                  Precio alternativo USD/kg
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={variant.priceOverrideUsd}
-                    onChange={(event) =>
-                      setVariant({ ...variant, priceOverrideUsd: event.target.value })
-                    }
-                    placeholder="Opcional"
-                  />
-                </label>
-              </div>
+              <VariantFields value={variant} products={products.data ?? []} onChange={setVariant} />
               <button
                 className="button secondary"
                 type="button"
@@ -702,20 +872,8 @@ export function AdminPage() {
                 disabled={variantMutation.isPending || !variant.productId || !variant.name.trim()}
               >
                 <Save size={15} />
-                {editingVariantId ? 'Guardar cambios' : 'Crear variante'}
+                Crear variante
               </button>
-              {editingVariantId && (
-                <button
-                  type="button"
-                  className="button ghost"
-                  onClick={() => {
-                    setEditingVariantId(null);
-                    setVariant({ productId: '', name: '', priceOverrideUsd: '' });
-                  }}
-                >
-                  Cancelar edición
-                </button>
-              )}
             </form>
           </details>
           <div className="catalog-list-heading catalog-list-heading-spaced">
@@ -868,23 +1026,42 @@ export function AdminPage() {
             </button>
           </div>
           {filteredProducts.length ? (
-            <div className="admin-list">
+            <div className="product-table" role="table" aria-label="Productos activos">
+              <div className="product-table-head" role="row">
+                <span role="columnheader">SKU / código</span>
+                <span role="columnheader">Denominación</span>
+                <span role="columnheader">Categoría</span>
+                <span role="columnheader">Precio USD/kg</span>
+                <span role="columnheader">Stock</span>
+                <span role="columnheader">Acciones</span>
+              </div>
               {pageSlice(filteredProducts, Math.min(productPage, productPages)).map((item) => (
-                <div key={item.id}>
-                  <strong>{item.sku}</strong>
-                  <span>
-                    {item.name} · {productCategoryName(item, categories.data ?? [])}
+                <div className="product-table-row" role="row" key={item.id}>
+                  <strong role="cell">{item.sku}</strong>
+                  <span role="cell" title={item.name}>
+                    {item.name}
                   </span>
-                  <b>
-                    USD {item.unit_price_usd} · Stock {formatDecimal(item.stock_kg, 3)} kg
-                  </b>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => startProductEdit(item)}
-                  >
-                    Editar
-                  </button>
+                  <span role="cell">{productCategoryName(item, categories.data ?? [])}</span>
+                  <b role="cell">USD {formatDecimal(item.unit_price_usd, 2)}</b>
+                  <b role="cell">{formatDecimal(item.stock_kg, 3)} kg</b>
+                  <div className="product-row-actions" role="cell">
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() => startProductEdit(item)}
+                    >
+                      <Pencil size={14} />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() => setVariantViewerProductId(item.id)}
+                    >
+                      <ListTree size={14} />
+                      Ver variaciones
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -975,28 +1152,40 @@ export function AdminPage() {
             </label>
           </div>
           {filteredVariants.length ? (
-            <div className="admin-list">
+            <div className="entity-table variant-table" role="table" aria-label="Variantes activas">
+              <div className="entity-table-head" role="row">
+                <span role="columnheader">Producto</span>
+                <span role="columnheader">Denominación alternativa</span>
+                <span role="columnheader">Precio USD/kg</span>
+                <span role="columnheader">Acciones</span>
+              </div>
               {pageSlice(filteredVariants, Math.min(variantPage, variantPages)).map((item) => {
                 const parent = products.data?.find(
                   (productItem) => productItem.id === item.product_id,
                 );
                 return (
-                  <div key={item.id}>
-                    <strong>Variante</strong>
-                    <span>
-                      {item.name} · {parent?.sku ?? 'Sin SKU'} ·{' '}
-                      {parent?.name ?? 'Producto pendiente'}
+                  <div className="entity-table-row" role="row" key={item.id}>
+                    <strong role="cell">
+                      {parent?.sku ?? 'Sin SKU'} · {parent?.name ?? 'Producto pendiente'}
+                    </strong>
+                    <span role="cell" title={item.name}>
+                      {item.name}
                     </span>
-                    <b>
-                      {item.price_override_usd ? `USD ${item.price_override_usd}` : 'Precio base'}
+                    <b role="cell">
+                      {item.price_override_usd
+                        ? `USD ${formatDecimal(item.price_override_usd, 2)}`
+                        : 'Precio base'}
                     </b>
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => startVariantEdit(item)}
-                    >
-                      Editar
-                    </button>
+                    <div className="entity-row-actions" role="cell">
+                      <button
+                        type="button"
+                        className="button ghost small"
+                        onClick={() => startVariantEdit(item)}
+                      >
+                        <Pencil size={14} />
+                        Editar
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -1042,55 +1231,68 @@ export function AdminPage() {
             <span className="count-badge">{clients.data?.length ?? '—'} activos</span>
           </div>
           <details className="admin-workspace" open>
-            <summary>Crear o editar cliente</summary>
+            <summary>Crear cliente</summary>
             <form className="admin-form" onSubmit={submitClient}>
+              <ClientFields value={customer} onChange={setCustomer} />
+              <button className="button primary" disabled={clientMutation.isPending}>
+                <Plus size={15} />
+                Crear cliente
+              </button>
+            </form>
+          </details>
+          <details className="admin-workspace">
+            <summary>Exportar documentos del cliente</summary>
+            <form className="admin-form" onSubmit={submitClientExport}>
+              <p className="muted">
+                Descarga un Excel con resumen, documentos y productos de cotizaciones y
+                confirmaciones del período. Incluye también borradores y anulados con su estado.
+              </p>
               <div className="two-columns">
+                <label className="full-span">
+                  Cliente
+                  <select
+                    required
+                    value={clientExport.clientId}
+                    onChange={(event) =>
+                      setClientExport({ ...clientExport, clientId: event.target.value })
+                    }
+                  >
+                    <option value="">Seleccionar…</option>
+                    {clients.data?.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.client_code} · {item.trade_name || item.legal_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label>
-                  Razón social
+                  Desde
                   <input
                     required
-                    value={customer.legalName}
+                    type="date"
+                    value={clientExport.from}
                     onChange={(event) =>
-                      setCustomer({ ...customer, legalName: event.target.value })
+                      setClientExport({ ...clientExport, from: event.target.value })
                     }
                   />
                 </label>
                 <label>
-                  Nombre comercial
-                  <input
-                    value={customer.tradeName}
-                    onChange={(event) =>
-                      setCustomer({ ...customer, tradeName: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  RUC
+                  Hasta
                   <input
                     required
-                    pattern="[0-9]{11}"
-                    value={customer.taxId}
-                    onChange={(event) => setCustomer({ ...customer, taxId: event.target.value })}
-                    placeholder="20123456789"
+                    type="date"
+                    min={clientExport.from || undefined}
+                    value={clientExport.to}
+                    onChange={(event) =>
+                      setClientExport({ ...clientExport, to: event.target.value })
+                    }
                   />
                 </label>
               </div>
-              <button className="button primary" disabled={clientMutation.isPending}>
-                {editingClientId ? <Save size={15} /> : <Plus size={15} />}
-                {editingClientId ? 'Guardar cambios' : 'Crear cliente'}
+              <button className="button secondary" disabled={clientExportMutation.isPending}>
+                <Download size={15} />
+                {clientExportMutation.isPending ? 'Preparando Excel…' : 'Exportar Excel'}
               </button>
-              {editingClientId && (
-                <button
-                  type="button"
-                  className="button ghost"
-                  onClick={() => {
-                    setEditingClientId(null);
-                    setCustomer({ legalName: '', tradeName: '', taxId: '' });
-                  }}
-                >
-                  Cancelar edición
-                </button>
-              )}
             </form>
           </details>
           <div className="admin-section-heading">
@@ -1252,18 +1454,38 @@ export function AdminPage() {
                   setClientSearch(event.target.value);
                   setClientPage(1);
                 }}
-                placeholder="Buscar por RUC o nombre…"
+                placeholder="Buscar por código, RUC o nombre…"
               />
             </label>
           </div>
-          <div className="admin-list">
+          <div className="entity-table client-table" role="table" aria-label="Clientes registrados">
+            <div className="entity-table-head" role="row">
+              <span role="columnheader">Código</span>
+              <span role="columnheader">RUC</span>
+              <span role="columnheader">Razón social</span>
+              <span role="columnheader">Nombre comercial</span>
+              <span role="columnheader">Acciones</span>
+            </div>
             {pageSlice(filteredClients, Math.min(clientPage, clientPages)).map((item) => (
-              <div key={item.id}>
-                <strong>{item.tax_id}</strong>
-                <span>{item.trade_name || item.legal_name}</span>
-                <button type="button" className="text-button" onClick={() => startClientEdit(item)}>
-                  Editar
-                </button>
+              <div className="entity-table-row" role="row" key={item.id}>
+                <strong role="cell">{item.client_code}</strong>
+                <strong role="cell">{item.tax_id}</strong>
+                <span role="cell" title={item.legal_name}>
+                  {item.legal_name}
+                </span>
+                <span role="cell" title={item.trade_name ?? ''}>
+                  {item.trade_name || '—'}
+                </span>
+                <div className="entity-row-actions" role="cell">
+                  <button
+                    type="button"
+                    className="button ghost small"
+                    onClick={() => startClientEdit(item)}
+                  >
+                    <Pencil size={14} />
+                    Editar
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1619,6 +1841,224 @@ export function AdminPage() {
             </button>
           </form>
         </section>
+      )}
+
+      {editingProductId && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeProductEdit();
+          }}
+        >
+          <section
+            className="modal-card product-edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-product-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">Catálogo</div>
+                <h2 id="edit-product-title">Editar producto</h2>
+                <p className="muted">Actualiza los datos comerciales sin salir del listado.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Cancelar edición"
+                onClick={closeProductEdit}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form className="admin-form" onSubmit={submitCatalog}>
+              <ProductFields
+                value={product}
+                categories={categories.data ?? []}
+                onChange={setProduct}
+                editing
+              />
+              <div className="modal-actions">
+                <button type="button" className="button ghost" onClick={closeProductEdit}>
+                  Cancelar
+                </button>
+                <button className="button primary" disabled={productMutation.isPending}>
+                  <Save size={15} />
+                  {productMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {variantViewerProduct && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setVariantViewerProductId(null);
+          }}
+        >
+          <section
+            className="modal-card variant-viewer-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-variants-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">Variaciones del producto</div>
+                <h2 id="product-variants-title">{variantViewerProduct.name}</h2>
+                <p className="muted">
+                  {variantViewerProduct.sku} · {variantViewerItems.length} variación
+                  {variantViewerItems.length === 1 ? '' : 'es'} activa
+                  {variantViewerItems.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Cerrar variaciones"
+                onClick={() => setVariantViewerProductId(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {variantViewerItems.length ? (
+              <div className="variant-viewer-list">
+                <div className="variant-viewer-head">
+                  <span>Denominación alternativa</span>
+                  <span>Precio USD/kg</span>
+                </div>
+                {variantViewerItems.map((item) => (
+                  <div key={item.id}>
+                    <strong>{item.name}</strong>
+                    <span>
+                      {item.price_override_usd
+                        ? `USD ${formatDecimal(item.price_override_usd, 2)}`
+                        : `Precio base: USD ${formatDecimal(variantViewerProduct.unit_price_usd, 2)}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="catalog-list-empty">Este producto no tiene variaciones activas.</div>
+            )}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => setVariantViewerProductId(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {editingVariantId && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeVariantEdit();
+          }}
+        >
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-variant-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">Catálogo</div>
+                <h2 id="edit-variant-title">Editar variante</h2>
+                <p className="muted">Actualiza la denominación o el precio alternativo.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Cancelar edición"
+                onClick={closeVariantEdit}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form
+              className="admin-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitVariant();
+              }}
+            >
+              <VariantFields value={variant} products={products.data ?? []} onChange={setVariant} />
+              <div className="modal-actions">
+                <button type="button" className="button ghost" onClick={closeVariantEdit}>
+                  Cancelar
+                </button>
+                <button
+                  className="button primary"
+                  disabled={variantMutation.isPending || !variant.productId || !variant.name.trim()}
+                >
+                  <Save size={15} />
+                  {variantMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {editingClientId && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeClientEdit();
+          }}
+        >
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-client-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">Clientes</div>
+                <h2 id="edit-client-title">Editar cliente</h2>
+                <p className="muted">
+                  {editingClient?.client_code ?? 'Código asignado automáticamente'} · Actualiza sus
+                  datos sin perder el contexto del listado.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Cancelar edición"
+                onClick={closeClientEdit}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form className="admin-form" onSubmit={submitClient}>
+              <ClientFields value={customer} onChange={setCustomer} />
+              <div className="modal-actions">
+                <button type="button" className="button ghost" onClick={closeClientEdit}>
+                  Cancelar
+                </button>
+                <button className="button primary" disabled={clientMutation.isPending}>
+                  <Save size={15} />
+                  {clientMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       )}
 
       {message && <div className="notice success">{message}</div>}

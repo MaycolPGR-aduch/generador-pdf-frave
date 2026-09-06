@@ -8,6 +8,7 @@ import {
   Download,
   FileCheck2,
   FileDown,
+  FilePlus2,
   Pencil,
   RefreshCw,
   Send,
@@ -16,6 +17,7 @@ import {
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createShareLink,
+  createConfirmationFromQuote,
   downloadDocument,
   duplicateDocument,
   generateDocument,
@@ -56,17 +58,24 @@ export function DocumentDetailPage() {
   const canVoid =
     profile?.role === 'admin' &&
     Boolean(document && ['generated', 'sent'].includes(document.status));
+  const canConvert = Boolean(
+    user &&
+    document?.type === 'proposal' &&
+    (document.status === 'generated' || document.status === 'sent'),
+  );
   const hasTotals = document?.total_usd != null;
   const hasIgv = document?.type === 'proforma' || document?.apply_igv;
   const action = useMutation({
     mutationFn: async (
-      kind: 'generate' | 'preview' | 'share' | 'download' | 'duplicate' | 'sent' | 'void',
+      kind:
+        'generate' | 'preview' | 'share' | 'download' | 'duplicate' | 'convert' | 'sent' | 'void',
     ) => {
       if (kind === 'generate') return generateDocument(id);
       if (kind === 'preview') return previewDocument(id);
       if (kind === 'share') return createShareLink(id);
       if (kind === 'download') return downloadDocument(id);
       if (kind === 'duplicate') return duplicateDocument(id);
+      if (kind === 'convert') return createConfirmationFromQuote(id);
       if (kind === 'void') {
         const reason = window.prompt('Motivo de anulación (obligatorio):')?.trim();
         if (!reason) throw new Error('La anulación requiere un motivo.');
@@ -81,7 +90,8 @@ export function DocumentDetailPage() {
         void navigator.clipboard?.writeText(String(result.url));
         setMessage('Enlace copiado. Caduca en siete días.');
       }
-      if (kind === 'duplicate' && typeof result === 'string') navigate(`/documents/${result}`);
+      if ((kind === 'duplicate' || kind === 'convert') && typeof result === 'string')
+        navigate(`/documents/${result}`);
       void client.invalidateQueries({ queryKey: ['document', id] });
       void client.invalidateQueries({ queryKey: ['documents'] });
       if (kind === 'generate' || kind === 'void') {
@@ -225,6 +235,19 @@ export function DocumentDetailPage() {
               <small>Crear un borrador propio</small>
             </span>
           </button>
+          {canConvert && (
+            <button
+              className="side-action"
+              disabled={action.isPending}
+              onClick={() => action.mutate('convert')}
+            >
+              <FilePlus2 size={16} />
+              <span>
+                <strong>Crear confirmación</strong>
+                <small>Conserva precios y datos de esta cotización</small>
+              </span>
+            </button>
+          )}
           {canManage &&
             hasNativePdf &&
             (document.status === 'generated' || document.status === 'sent') && (
@@ -271,6 +294,12 @@ export function DocumentDetailPage() {
             <strong>
               {document.type === 'proposal' ? 'Cotización' : 'Confirmación de pedido'}
             </strong>
+            {document.source_quote_id && (
+              <>
+                <span>Cotización de origen</span>
+                <Link to={`/documents/${document.source_quote_id}`}>Ver cotización</Link>
+              </>
+            )}
             <span>Creado</span>
             <strong>
               {new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(

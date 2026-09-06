@@ -2,6 +2,7 @@ import type { DocumentDraftInput } from '@frave/domain';
 import { supabase } from './supabase';
 import type {
   Client,
+  ClientDocumentExport,
   DocumentItemRow,
   DocumentRow,
   Product,
@@ -44,11 +45,54 @@ export async function listClients(): Promise<Client[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from('clients')
-    .select('id, legal_name, trade_name, tax_id, active')
+    .select('id, client_code, legal_name, trade_name, tax_id, active')
     .eq('active', true)
     .order('legal_name');
   if (error) throw error;
   return (data ?? []) as Client[];
+}
+
+function nextCalendarDate(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+  const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
+  return nextDate.toISOString().slice(0, 10);
+}
+
+export async function listClientDocumentsForExport(input: {
+  clientId: string;
+  from: string;
+  to: string;
+}): Promise<ClientDocumentExport[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('documents')
+    .select(
+      `id, type, status, number, legacy_number, payment_method, delivery_method, valid_until,
+       apply_igv, subtotal_usd, tax_usd, total_usd, sent_at, voided_at, void_reason, created_at,
+       document_items(id, document_id, position, product_id, variant_id, source_quote_item_id,
+         quantity_kg, observation, sku_snapshot, denomination_snapshot, category_snapshot,
+         unit_price_usd, subtotal_usd, tax_usd, total_usd)`,
+    )
+    .eq('client_id', input.clientId)
+    .gte('created_at', `${input.from}T00:00:00-05:00`)
+    .lt('created_at', `${nextCalendarDate(input.to)}T00:00:00-05:00`)
+    .order('created_at', { ascending: true })
+    .order('position', { foreignTable: 'document_items', ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((document) => ({
+    ...document,
+    subtotal_usd: document.subtotal_usd == null ? null : String(document.subtotal_usd),
+    tax_usd: document.tax_usd == null ? null : String(document.tax_usd),
+    total_usd: document.total_usd == null ? null : String(document.total_usd),
+    document_items: (document.document_items ?? []).map((item) => ({
+      ...item,
+      quantity_kg: item.quantity_kg == null ? null : String(item.quantity_kg),
+      unit_price_usd: item.unit_price_usd == null ? null : String(item.unit_price_usd),
+      subtotal_usd: item.subtotal_usd == null ? null : String(item.subtotal_usd),
+      tax_usd: item.tax_usd == null ? null : String(item.tax_usd),
+      total_usd: item.total_usd == null ? null : String(item.total_usd),
+    })),
+  })) as ClientDocumentExport[];
 }
 
 export async function listProducts(): Promise<Product[]> {
@@ -286,7 +330,7 @@ export async function createClient(input: {
       trade_name: input.tradeName?.trim() || null,
       tax_id: input.taxId.trim(),
     })
-    .select('id, legal_name, trade_name, tax_id, active')
+    .select('id, client_code, legal_name, trade_name, tax_id, active')
     .single();
   if (error) throw error;
   return data as Client;
@@ -307,7 +351,7 @@ export async function updateClient(input: {
       tax_id: input.taxId.trim(),
     })
     .eq('id', input.id)
-    .select('id, legal_name, trade_name, tax_id, active')
+    .select('id, client_code, legal_name, trade_name, tax_id, active')
     .single();
   if (error) throw error;
   return data as Client;
@@ -507,6 +551,7 @@ export async function createDraft(input: DocumentDraftInput, userId: string): Pr
     position: index + 1,
     product_id: item.productId,
     variant_id: item.variantId ?? null,
+    source_quote_item_id: item.sourceQuoteItemId ?? null,
     quantity_kg: item.quantityKg ?? null,
     observation: item.observation ?? null,
   }));
@@ -544,6 +589,7 @@ export async function updateDraft(
     p_items: input.items.map((item) => ({
       productId: item.productId,
       variantId: item.variantId ?? null,
+      sourceQuoteItemId: item.sourceQuoteItemId ?? null,
       quantityKg: item.quantityKg ?? null,
       observation: item.observation ?? null,
     })),
@@ -617,6 +663,15 @@ export async function downloadDocument(documentId: string): Promise<void> {
 export async function duplicateDocument(sourceDocumentId: string): Promise<string> {
   const client = requireSupabase();
   const { data, error } = await client.rpc('duplicate_document', { p_source_id: sourceDocumentId });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function createConfirmationFromQuote(quoteId: string): Promise<string> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('create_confirmation_from_quote', {
+    p_quote_id: quoteId,
+  });
   if (error) throw error;
   return data as string;
 }

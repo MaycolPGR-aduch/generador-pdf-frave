@@ -6,3 +6,4 @@
 4. La vista previa muestra `BORRADOR` y no reserva número.
 5. Al generar, PostgreSQL valida stock, lo descuenta por producto dentro de la misma transacción, registra el movimiento, reserva `CP-YYYY-####`, congela configuración y cuentas bancarias, y el servidor sube el PDF privado.
 6. El documento emitido es inmutable. Un ajuste crea un borrador duplicado y un administrador puede anular el anterior con motivo; la anulación devuelve automáticamente el stock descontado.
+7. Una confirmación creada desde cotización conserva sus precios congelados, cliente, condiciones, líneas y cantidades existentes. Las cantidades que falten deben completarse antes de emitir; el cambio de producto o variante quita esa referencia y toma el precio actual del catálogo.

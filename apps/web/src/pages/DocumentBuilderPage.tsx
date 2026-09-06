@@ -24,6 +24,8 @@ import { useAuth } from '../auth/AuthProvider';
 const itemSchema = z.object({
   productId: z.string().min(1, 'Selecciona un producto'),
   variantId: z.string().optional(),
+  sourceQuoteItemId: z.string().optional(),
+  quotedUnitPriceUsd: z.string().optional(),
   quantityKg: z.string().optional(),
   observation: z.string().max(300).optional(),
 });
@@ -93,7 +95,16 @@ export function DocumentBuilderPage() {
       deliveryMethod: 'Despacho coordinado con el cliente',
       validUntil: todayPlus(30),
       considerationsText: '',
-      items: [{ productId: '', variantId: '', quantityKg: '', observation: '' }],
+      items: [
+        {
+          productId: '',
+          variantId: '',
+          sourceQuoteItemId: '',
+          quotedUnitPriceUsd: '',
+          quantityKg: '',
+          observation: '',
+        },
+      ],
     },
     mode: 'onBlur',
   });
@@ -125,12 +136,15 @@ export function DocumentBuilderPage() {
       items: existing.data.items.map((item) => ({
         productId: item.product_id,
         variantId: item.variant_id ?? '',
+        sourceQuoteItemId: item.source_quote_item_id ?? '',
+        quotedUnitPriceUsd: item.source_quote_item_id ? (item.unit_price_usd ?? '') : '',
         quantityKg: item.quantity_kg ?? '',
         observation: item.observation ?? '',
       })),
     });
   }, [existing.data, form]);
   const type = form.watch('type');
+  const isConvertedConfirmation = Boolean(existing.data?.document.source_quote_id);
   const applyIgv = form.watch('applyIgv');
   const watchedItems = form.watch('items');
   const paymentMethod = form.watch('paymentMethod');
@@ -160,7 +174,8 @@ export function DocumentBuilderPage() {
       .map((item) => {
         const product = products.data?.find((p) => p.id === item.productId);
         const variant = variants.data?.find((v) => v.id === item.variantId);
-        const price = variant?.price_override_usd ?? product?.unit_price_usd;
+        const price =
+          item.quotedUnitPriceUsd || variant?.price_override_usd || product?.unit_price_usd;
         return price && item.quantityKg
           ? { quantityKg: item.quantityKg, unitPriceUsd: String(price) }
           : null;
@@ -195,6 +210,7 @@ export function DocumentBuilderPage() {
         return {
           productId: product.id,
           variantId: variant?.id,
+          sourceQuoteItemId: item.sourceQuoteItemId || undefined,
           sku: product.sku,
           denomination: variant?.name ?? product.name,
           category: product.product_categories?.[0]?.name ?? 'Sin categoría',
@@ -253,6 +269,12 @@ export function DocumentBuilderPage() {
           </Link>
           <h1>{id ? 'Editar borrador' : 'Nuevo documento'}</h1>
           <p className="muted">Completa la información comercial y revisa antes de guardar.</p>
+          {isConvertedConfirmation && (
+            <p className="field-help">
+              Esta confirmación proviene de una cotización: conserva sus precios y no puede
+              cambiarse de tipo.
+            </p>
+          )}
         </div>
         <div className="draft-indicator">
           <span className="status-dot" />
@@ -285,13 +307,23 @@ export function DocumentBuilderPage() {
               </div>
               <div className="type-choice">
                 <label className={type === 'proposal' ? 'selected' : ''}>
-                  <input type="radio" value="proposal" {...form.register('type')} />
+                  <input
+                    type="radio"
+                    value="proposal"
+                    disabled={isConvertedConfirmation}
+                    {...form.register('type')}
+                  />
                   <span className="choice-icon">✦</span>
                   <strong>Cotización</strong>
                   <small>Cantidades opcionales; calcula totales si todas están completas.</small>
                 </label>
                 <label className={type === 'proforma' ? 'selected' : ''}>
-                  <input type="radio" value="proforma" {...form.register('type')} />
+                  <input
+                    type="radio"
+                    value="proforma"
+                    disabled={isConvertedConfirmation}
+                    {...form.register('type')}
+                  />
                   <span className="choice-icon">$</span>
                   <strong>Confirmación de pedido</strong>
                   <small>Requiere cantidades y descuenta stock al emitir.</small>
@@ -303,7 +335,8 @@ export function DocumentBuilderPage() {
                   <option value="">Seleccionar cliente…</option>
                   {clients.data?.map((client) => (
                     <option key={client.id} value={client.id}>
-                      {client.trade_name || client.legal_name} · RUC {client.tax_id}
+                      {client.client_code} · {client.trade_name || client.legal_name} · RUC{' '}
+                      {client.tax_id}
                     </option>
                   ))}
                 </select>
@@ -428,7 +461,14 @@ export function DocumentBuilderPage() {
                   type="button"
                   className="button secondary small"
                   onClick={() =>
-                    append({ productId: '', variantId: '', quantityKg: '', observation: '' })
+                    append({
+                      productId: '',
+                      variantId: '',
+                      sourceQuoteItemId: '',
+                      quotedUnitPriceUsd: '',
+                      quantityKg: '',
+                      observation: '',
+                    })
                   }
                   disabled={fields.length >= 100}
                 >
@@ -450,11 +490,25 @@ export function DocumentBuilderPage() {
                   const options =
                     variants.data?.filter((variant) => variant.product_id === product?.id) ?? [];
                   const variant = variants.data?.find((v) => v.id === item?.variantId);
+                  const productField = form.register(`items.${index}.productId`);
+                  const variantField = form.register(`items.${index}.variantId`);
+                  const displayedPrice =
+                    item?.quotedUnitPriceUsd ||
+                    variant?.price_override_usd ||
+                    product?.unit_price_usd;
                   return (
                     <div className="item-line" key={field.id}>
                       <span className="item-number">{index + 1}</span>
                       <div>
-                        <select {...form.register(`items.${index}.productId`)}>
+                        <select
+                          {...productField}
+                          onChange={(event) => {
+                            productField.onChange(event);
+                            form.setValue(`items.${index}.variantId`, '');
+                            form.setValue(`items.${index}.sourceQuoteItemId`, '');
+                            form.setValue(`items.${index}.quotedUnitPriceUsd`, '');
+                          }}
+                        >
                           <option value="">Seleccionar…</option>
                           {products.data?.map((p) => (
                             <option key={p.id} value={p.id}>
@@ -465,7 +519,12 @@ export function DocumentBuilderPage() {
                         {options.length > 0 && (
                           <select
                             className="variant-select"
-                            {...form.register(`items.${index}.variantId`)}
+                            {...variantField}
+                            onChange={(event) => {
+                              variantField.onChange(event);
+                              form.setValue(`items.${index}.sourceQuoteItemId`, '');
+                              form.setValue(`items.${index}.quotedUnitPriceUsd`, '');
+                            }}
                           >
                             <option value="">Sin variante</option>
                             {options.map((v) => (
@@ -484,10 +543,11 @@ export function DocumentBuilderPage() {
                         {...form.register(`items.${index}.quantityKg`)}
                       />
                       <span className="price-cell">
-                        {product
-                          ? `USD ${formatDecimal(variant?.price_override_usd ?? product.unit_price_usd, 2)}`
-                          : '—'}
+                        {product ? `USD ${formatDecimal(displayedPrice ?? '0', 2)}` : '—'}
                         {product && <small>Stock: {formatDecimal(product.stock_kg, 3)} kg</small>}
+                        {item?.sourceQuoteItemId && (
+                          <small>Precio conservado de la cotización</small>
+                        )}
                       </span>
                       <button
                         type="button"

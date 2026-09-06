@@ -12,6 +12,7 @@ export type Profile = {
 
 export type Client = {
   id: string;
+  client_code: string;
   legal_name: string;
   trade_name: string | null;
   tax_id: string;
@@ -104,6 +105,7 @@ export type DocumentRow = {
   legacy_file_name: string | null;
   legacy_drive_url: string | null;
   legacy_source_hash: string | null;
+  source_quote_id: string | null;
   client_id: string;
   created_by: string;
   seller_id: string;
@@ -142,6 +144,7 @@ export type DocumentItemRow = {
   position: number;
   product_id: string;
   variant_id: string | null;
+  source_quote_item_id: string | null;
   quantity_kg: string | null;
   observation: string | null;
   sku_snapshot: string | null;
@@ -151,4 +154,26 @@ export type DocumentItemRow = {
   subtotal_usd: string | null;
   tax_usd: string | null;
   total_usd: string | null;
+};
+
+export type ClientDocumentExport = Pick<
+  DocumentRow,
+  | 'id'
+  | 'type'
+  | 'status'
+  | 'number'
+  | 'legacy_number'
+  | 'payment_method'
+  | 'delivery_method'
+  | 'valid_until'
+  | 'apply_igv'
+  | 'subtotal_usd'
+  | 'tax_usd'
+  | 'total_usd'
+  | 'created_at'
+> & {
+  sent_at: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  document_items: DocumentItemRow[];
 };

@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowUpRight,
   Copy,
+  Download,
+  Eye,
   FileCheck2,
   FilePlus2,
   FileWarning,
@@ -11,10 +13,14 @@ import {
   RotateCcw,
   Search,
   Send,
+  Share2,
   Sparkles,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  createConfirmationFromQuote,
+  createShareLink,
+  downloadDocument,
   duplicateDocument,
   listDocuments,
   listLowStockProducts,
@@ -69,12 +75,39 @@ function DocumentRowView({
   document,
   onDuplicate,
   onSent,
+  onDownload,
+  onShare,
+  onConvert,
 }: {
   document: DocumentRow;
   onDuplicate: (id: string) => void;
   onSent: (id: string) => void;
+  onDownload: (id: string) => void;
+  onShare: (id: string) => void;
+  onConvert: (id: string) => void;
 }) {
   const canSend = document.status === 'generated';
+  const canAccessPdf =
+    Boolean(document.number) && (document.status === 'generated' || document.status === 'sent');
+  const canConvert =
+    document.type === 'proposal' && (document.status === 'generated' || document.status === 'sent');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<globalThis.HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeMenu = (event: globalThis.MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as globalThis.Node)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('mousedown', closeMenu);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('mousedown', closeMenu);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
   return (
     <div className="document-row">
       <div className={`type-icon ${document.type}`}>
@@ -109,9 +142,69 @@ function DocumentRowView({
             <Send size={16} />
           </button>
         )}
-        <button className="icon-button" title="Más opciones">
-          <MoreHorizontal size={17} />
-        </button>
+        <div className="row-action-menu" ref={menuRef}>
+          <button
+            className="icon-button"
+            type="button"
+            title="Más opciones"
+            aria-label="Más opciones"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <MoreHorizontal size={17} />
+          </button>
+          {menuOpen && (
+            <div className="row-action-popover" role="menu" aria-label="Acciones del documento">
+              <Link
+                to={`/documents/${document.id}`}
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                <Eye size={15} />
+                Ver detalle
+              </Link>
+              {canAccessPdf && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDownload(document.id);
+                  }}
+                >
+                  <Download size={15} />
+                  Descargar PDF
+                </button>
+              )}
+              {canAccessPdf && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onShare(document.id);
+                  }}
+                >
+                  <Share2 size={15} />
+                  Copiar enlace temporal
+                </button>
+              )}
+              {canConvert && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onConvert(document.id);
+                  }}
+                >
+                  <FilePlus2 size={15} />
+                  Crear confirmación
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -186,6 +279,30 @@ export function DashboardPage() {
       await client.invalidateQueries({ queryKey: ['documents'] });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'No se pudo actualizar.');
+    }
+  }
+  async function download(id: string) {
+    try {
+      await downloadDocument(id);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo descargar el PDF.');
+    }
+  }
+  async function share(id: string) {
+    try {
+      const { url } = await createShareLink(id);
+      await navigator.clipboard?.writeText(url);
+      window.alert('Enlace copiado. Caduca en siete días.');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo crear el enlace.');
+    }
+  }
+  async function convert(id: string) {
+    try {
+      const newId = await createConfirmationFromQuote(id);
+      navigate(`/documents/${newId}`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo crear la confirmación.');
     }
   }
   return (
@@ -369,6 +486,9 @@ export function DashboardPage() {
                   document={document}
                   onDuplicate={(id) => void duplicate(id)}
                   onSent={(id) => void sent(id)}
+                  onDownload={(id) => void download(id)}
+                  onShare={(id) => void share(id)}
+                  onConvert={(id) => void convert(id)}
                 />
               ))}
             </div>

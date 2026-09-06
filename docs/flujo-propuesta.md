@@ -7,3 +7,4 @@
 5. La vista previa usa el mismo motor PDF y muestra `BORRADOR`.
 6. Al generar, PostgreSQL reserva `COT-YYYY-####`, congela snapshots y la Edge Function guarda el PDF privado. No modifica stock.
 7. El vendedor puede descargarlo, copiar un enlace de siete días o marcarlo como enviado. Las correcciones se hacen duplicando el documento.
+8. Desde una cotización generada o enviada, cualquier usuario activo puede usar **Crear confirmación**. El sistema crea un borrador de confirmación propio y mantiene una relación trazable con la cotización; no afecta el stock.

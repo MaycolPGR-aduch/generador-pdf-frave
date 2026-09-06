@@ -4,6 +4,7 @@ Aplicación interna para preparar dos tipos de documentos comerciales en PDF:
 
 - **Cotización:** muestra precios y permite cantidades opcionales. Solo calcula subtotal, IGV y total cuando todas las líneas tienen cantidad; el IGV se puede desactivar para cada cotización.
 - **Confirmación de pedido:** exige cantidades, calcula IGV y total, y descuenta stock en kg de manera transaccional al emitirse.
+- Una cotización generada o enviada puede convertirse en un borrador de confirmación. Conserva cliente, condiciones, líneas, cantidades existentes y precios cotizados; el stock se valida y descuenta únicamente al emitir la confirmación.
 
 El frontend usa React, TypeScript y Vite. El backend utiliza Supabase PostgreSQL, Auth, Edge Functions y Storage privado. La composición del PDF está versionada en código y no depende de fórmulas de hojas de cálculo.
 
@@ -13,6 +14,7 @@ El frontend usa React, TypeScript y Vite. El backend utiliza Supabase PostgreSQL
 - Acceso interno con Supabase email/password y roles `admin`/`seller`.
 - Dashboard, historial y constructor documental por pasos.
 - Administración de categorías, productos, variantes, clientes, contactos, direcciones, bancos, configuración e invitaciones.
+- Exportación Excel por cliente y período, con resumen, documentos y productos por documento.
 - Cálculos decimales con redondeo por línea y pruebas Vitest.
 - Migración SQL con RLS, numeración transaccional, snapshots, auditoría, inmutabilidad y libro de movimientos de stock.
 - Edge Functions para preview, generación, enlaces firmados y administración.
@@ -142,6 +144,7 @@ Como administrador:
 6. En **Configuración > Opciones comerciales**, registra las formas de pago y entrega reutilizables.
 7. Configura empresa y bancos antes de emitir PDFs definitivos. En el generador, pago y entrega se seleccionan desde combos.
 8. Usa **Control de stock** para ajustes manuales; cada ajuste requiere motivo y queda registrado.
+9. En **Clientes > Exportar documentos del cliente**, selecciona un cliente y un período para descargar un Excel. El archivo incluye cotizaciones y confirmaciones, incluso borradores o anulados, identificados por su estado.
 
 ## Migración de datos históricos
 

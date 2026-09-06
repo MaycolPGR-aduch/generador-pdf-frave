@@ -68,6 +68,9 @@ importers:
       react-router-dom:
         specifier: ^7.3.0
         version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
       zod:
         specifier: ^3.24.2
         version: 3.25.76
