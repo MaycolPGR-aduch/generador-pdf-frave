@@ -6,6 +6,17 @@ Los Excel con datos operativos no deben entrar al repositorio. Colócalos tempor
 node scripts/migrate-xlsx.mjs
 ```
 
+Para cargar únicamente el catálogo de las plantillas —sin clientes, historial ni
+documentos— se puede apuntar directamente a la carpeta que contiene los Excel:
+
+```bash
+node scripts/migrate-xlsx.mjs . --catalog-only
+```
+
+Este modo extrae SKU, denominación, categoría, precio y variaciones. Cuando un
+SKU difiere entre archivos, se excluye del reporte de importación hasta que se
+revise manualmente.
+
 El script no modifica los archivos de origen. Normaliza SKU, categorías y RUC, calcula un hash por fila y genera `migration/output/report.json` con catálogos deduplicados, conflictos y claves de migración repetibles. Los PDF históricos y sus enlaces no se descargan.
 
 La importación a Supabase debe ejecutarse únicamente después de revisar el reporte. La primera versión incluye la Edge Function `admin-import-migration`, que acepta un token efímero configurado como secreto `MIGRATION_TOKEN` (o un JWT de un administrador):

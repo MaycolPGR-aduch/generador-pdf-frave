@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 
 const inputDir = path.resolve(process.argv[2] ?? 'migration/input');
 const apply = process.argv.includes('--apply');
+const catalogOnly = process.argv.includes('--catalog-only');
 const outputDir = path.resolve('migration/output');
 const text = (value) => (value == null ? '' : String(value).trim());
 const key = (value) =>
@@ -74,18 +75,31 @@ for (const file of files) {
             'Categoria HC/PC',
           ]),
           unitPriceUsd: first(row, ['Precio', 'USD/Kg', 'USD / Kg', 'Precio USD/kg']),
+          variants: Object.entries(row)
+            .filter(([header]) => /^variacion\s*\d*$/i.test(key(header)))
+            .map(([, value]) => text(value))
+            .filter(Boolean),
         };
+        if (!product.name || !product.unitPriceUsd) continue;
         const productKey = key(sku);
         const previous = products.get(productKey);
-        if (previous && JSON.stringify(previous.value) !== JSON.stringify(product))
+        const productIdentity = ({ variants: _variants, ...identity }) => identity;
+        if (
+          previous &&
+          JSON.stringify(productIdentity(previous.value)) !==
+            JSON.stringify(productIdentity(product))
+        )
           conflicts.push({
             type: 'product',
             key: sku,
             sources: [previous.sourceKey, sourceKey],
-            values: [previous.value, product],
+            values: [productIdentity(previous.value), productIdentity(product)],
           });
-        else if (!previous) products.set(productKey, { sourceKey, value: product });
+        else if (previous) {
+          previous.value.variants = [...new Set([...previous.value.variants, ...product.variants])];
+        } else products.set(productKey, { sourceKey, value: product });
       }
+      if (catalogOnly) continue;
       const taxId = first(row, ['RUC', 'Tax ID', 'Documento']);
       if (normalizedSheet.includes('historial')) {
         const legacyNumber = first(row, [
@@ -138,20 +152,31 @@ for (const file of files) {
     }
   }
 }
+const conflictingProductKeys = new Set(
+  conflicts.filter((conflict) => conflict.type === 'product').map((conflict) => key(conflict.key)),
+);
 const report = {
   generatedAt: new Date().toISOString(),
   inputDir,
   files: files.map((file) => file.name),
-  products: [...products.values()].map((entry) => entry.value),
-  clients: [...clients.values()].map((entry) => entry.value),
-  legacyDocuments,
+  products: [...products.entries()]
+    .filter(([productKey]) => !catalogOnly || !conflictingProductKeys.has(productKey))
+    .map(([, entry]) => entry.value),
+  clients: catalogOnly ? [] : [...clients.values()].map((entry) => entry.value),
+  legacyDocuments: catalogOnly ? [] : legacyDocuments,
   conflicts,
-  migrationRecords: records,
+  migrationRecords: catalogOnly ? [] : records,
   applyRequested: apply,
   notes: [
     'Los PDF históricos no se descargan ni se copian.',
     'Los RUC inválidos se conservan para revisión.',
     'Repetir el proceso produce las mismas claves y hashes.',
+    ...(catalogOnly
+      ? [
+          `Modo catálogo: se excluyeron ${conflictingProductKeys.size} SKU con conflictos entre archivos.`,
+          'No se importan clientes, documentos ni registros históricos.',
+        ]
+      : []),
   ],
 };
 await fs.mkdir(outputDir, { recursive: true });
@@ -173,5 +198,5 @@ if (apply) {
 }
 console.log(`Reporte generado: ${path.join(outputDir, 'report.json')}`);
 console.log(
-  `Productos únicos: ${products.size} · Clientes únicos: ${clients.size} · Conflictos: ${conflicts.length}`,
+  `Productos a importar: ${report.products.length} · Clientes: ${report.clients.length} · Conflictos: ${conflicts.length}`,
 );

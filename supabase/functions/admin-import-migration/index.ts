@@ -6,6 +6,7 @@ type MigrationProduct = {
   name?: string;
   category?: string;
   unitPriceUsd?: string;
+  variants?: string[];
 };
 
 type MigrationClient = { taxId?: string; legalName?: string; tradeName?: string };
@@ -65,6 +66,7 @@ Deno.serve(async (request) => {
       : [];
     let categoryCount = 0;
     let productCount = 0;
+    let variantCount = 0;
     let clientCount = 0;
     let skippedRecords = 0;
     let legacyDocumentCount = 0;
@@ -103,21 +105,42 @@ Deno.serve(async (request) => {
       }
       const existing = await admin.from('products').select('id').ilike('sku', sku).maybeSingle();
       if (existing.error) throw existing.error;
-      if (existing.data) continue;
-      const result = await admin
-        .from('products')
-        .insert({
-          sku,
-          name,
-          category_id: categoryRow.id,
-          unit_price_usd: price,
-          legacy_source: 'xlsx',
-        })
-        .select('id')
-        .single();
-      if (result.error || !result.data)
-        throw result.error ?? new Error('No se pudo crear el producto');
-      productCount += 1;
+      let productId = existing.data?.id;
+      if (!productId) {
+        const result = await admin
+          .from('products')
+          .insert({
+            sku,
+            name,
+            category_id: categoryRow.id,
+            unit_price_usd: price,
+            legacy_source: 'xlsx',
+          })
+          .select('id')
+          .single();
+        if (result.error || !result.data)
+          throw result.error ?? new Error('No se pudo crear el producto');
+        productId = result.data.id;
+        productCount += 1;
+      }
+      const variants = Array.isArray(source.variants)
+        ? [...new Set(source.variants.map(clean).filter(Boolean))]
+        : [];
+      for (const name of variants) {
+        const existingVariant = await admin
+          .from('product_variants')
+          .select('id')
+          .eq('product_id', productId)
+          .ilike('name', name)
+          .maybeSingle();
+        if (existingVariant.error) throw existingVariant.error;
+        if (existingVariant.data) continue;
+        const result = await admin
+          .from('product_variants')
+          .insert({ product_id: productId, name, active: true });
+        if (result.error) throw result.error;
+        variantCount += 1;
+      }
     }
 
     for (const source of clients) {
@@ -266,6 +289,7 @@ Deno.serve(async (request) => {
       metadata: {
         products: productCount,
         categories: categoryCount,
+        variants: variantCount,
         clients: clientCount,
         records: records.length,
         skippedRecords,
@@ -277,6 +301,7 @@ Deno.serve(async (request) => {
       status: 'imported',
       products: productCount,
       categories: categoryCount,
+      variants: variantCount,
       clients: clientCount,
       records: records.length,
       skippedRecords,
