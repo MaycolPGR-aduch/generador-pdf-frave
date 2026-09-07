@@ -1367,7 +1367,7 @@ textarea {
 .detail-table-row {
   display: grid;
   gap: 12px;
-  grid-template-columns: 75px minmax(0, 1.7fr) minmax(90px, 1fr) 120px;
+  grid-template-columns: 75px minmax(0, 1.45fr) minmax(90px, 1fr) 78px 110px;
   padding: 12px 24px;
 }
 .detail-table-head {
@@ -1588,6 +1588,8 @@ textarea {
     padding-left: 14px;
     padding-right: 14px;
   }
+  .detail-table-head span:nth-child(3),
+  .detail-table-row span:nth-child(3),
   .detail-table-head span:last-child,
   .detail-table-row span:last-child {
     display: none;

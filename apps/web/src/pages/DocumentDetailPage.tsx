@@ -20,6 +20,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createShareLink,
   createConfirmationFromQuote,
+  deleteDraft,
   downloadDocument,
   deleteDocumentPdf,
   duplicateDocument,
@@ -65,6 +66,7 @@ export function DocumentDetailPage() {
   const canManage = Boolean(
     user && (document?.created_by === user.id || profile?.role === 'admin'),
   );
+  const canDeleteDraft = document?.status === 'draft' && canManage;
   const canVoid =
     profile?.role === 'admin' &&
     Boolean(document && ['generated', 'sent'].includes(document.status));
@@ -95,6 +97,7 @@ export function DocumentDetailPage() {
         | 'convert'
         | 'sent'
         | 'void'
+        | 'deleteDraft'
         | 'deletePdf',
     ) => {
       if (kind === 'generate') return generateDocument(id);
@@ -104,6 +107,11 @@ export function DocumentDetailPage() {
       if (kind === 'download') return downloadDocument(id);
       if (kind === 'duplicate') return duplicateDocument(id);
       if (kind === 'convert') return createConfirmationFromQuote(id);
+      if (kind === 'deleteDraft') {
+        if (!window.confirm('¿Eliminar este borrador? Esta acción no se puede deshacer.'))
+          return 'cancelled';
+        return deleteDraft(id);
+      }
       if (kind === 'void') {
         const reason = window.prompt('Motivo de anulación (obligatorio):')?.trim();
         if (!reason) throw new Error('La anulación requiere un motivo.');
@@ -133,6 +141,11 @@ export function DocumentDetailPage() {
       }
       if ((kind === 'duplicate' || kind === 'convert') && typeof result === 'string')
         navigate(`/documents/${result}`);
+      if (kind === 'deleteDraft' && result !== 'cancelled') {
+        void client.invalidateQueries({ queryKey: ['documents'] });
+        navigate('/');
+        return;
+      }
       if (kind === 'deletePdf' && result !== 'cancelled') {
         setMessageTone('success');
         setMessage('PDF eliminado de Storage. El historial comercial se conserva.');
@@ -250,16 +263,18 @@ export function DocumentDetailPage() {
               <span>REF</span>
               <span>DENOMINACIÓN</span>
               <span>CATEGORÍA</span>
-              <span>{hasTotals ? 'KG / TOTAL' : 'USD / KG'}</span>
+              <span>KG / NETO</span>
+              <span>{hasTotals ? 'USD / TOTAL' : 'USD / KG'}</span>
             </div>
             {items.map((item) => (
               <div className="detail-table-row" key={item.id}>
                 <strong>{item.sku_snapshot}</strong>
                 <span>{item.denomination_snapshot}</span>
                 <span>{item.category_snapshot}</span>
+                <span>{item.quantity_kg == null ? '—' : `${item.quantity_kg} kg`}</span>
                 <span>
                   {hasTotals
-                    ? `${item.quantity_kg ?? '—'} kg · USD ${item.total_usd ?? '—'}`
+                    ? `USD ${item.total_usd ?? '—'}`
                     : `USD ${item.unit_price_usd ?? '—'}`}
                 </span>
               </div>
@@ -293,6 +308,19 @@ export function DocumentDetailPage() {
               <small>Crear un borrador propio</small>
             </span>
           </button>
+          {canDeleteDraft && (
+            <button
+              className="side-action danger-action"
+              disabled={action.isPending}
+              onClick={() => action.mutate('deleteDraft')}
+            >
+              <Trash2 size={16} />
+              <span>
+                <strong>Eliminar borrador</strong>
+                <small>Elimina este documento sin emitir</small>
+              </span>
+            </button>
+          )}
           {canConvert && (
             <button
               className="side-action"

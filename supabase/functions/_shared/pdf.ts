@@ -94,17 +94,17 @@ function drawText(
   return lines.length * (size + 2);
 }
 
-function drawRightText(
+function drawTableValue(
   page: PDFPage,
   font: PDFFont,
   value: string,
-  right: number,
+  x: number,
   y: number,
   size: number,
   color = ink,
 ) {
   page.drawText(value, {
-    x: right - font.widthOfTextAtSize(value, size),
+    x,
     y,
     size,
     font,
@@ -395,85 +395,85 @@ export async function createFravePdf(
       })
     );
     if (!hasTotals) {
-      drawRightText(
+      drawTableValue(
         page,
         bold,
         money(item.unitPriceUsd).replace("USD ", ""),
-        columns[3].x + columns[3].width,
+        columns[3].x,
         baseY,
         7.3,
       );
     } else if (hasIgv) {
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         item.quantityKg ?? "—",
-        columns[3].x + columns[3].width,
+        columns[3].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         money(item.unitPriceUsd).replace("USD ", ""),
-        columns[4].x + columns[4].width,
+        columns[4].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         money(item.subtotalUsd).replace("USD ", ""),
-        columns[5].x + columns[5].width,
+        columns[5].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         money(item.taxUsd).replace("USD ", ""),
-        columns[6].x + columns[6].width,
+        columns[6].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         bold,
         money(item.totalUsd).replace("USD ", ""),
-        columns[7].x + columns[7].width,
+        columns[7].x,
         baseY,
         7.2,
       );
     } else {
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         item.quantityKg ?? "—",
-        columns[3].x + columns[3].width,
+        columns[3].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         money(item.unitPriceUsd).replace("USD ", ""),
-        columns[4].x + columns[4].width,
+        columns[4].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         regular,
         money(item.subtotalUsd).replace("USD ", ""),
-        columns[5].x + columns[5].width,
+        columns[5].x,
         baseY,
         7.2,
       );
-      drawRightText(
+      drawTableValue(
         page,
         bold,
         money(item.totalUsd).replace("USD ", ""),
-        columns[6].x + columns[6].width,
+        columns[6].x,
         baseY,
         7.2,
       );

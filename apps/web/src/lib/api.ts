@@ -628,6 +628,19 @@ export async function updateDraft(
   return data as DocumentRow;
 }
 
+export async function deleteDraft(documentId: string): Promise<void> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('documents')
+    .delete()
+    .eq('id', documentId)
+    .eq('status', 'draft')
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('El borrador no existe o no tienes permiso para eliminarlo.');
+}
+
 export async function loadDocument(
   id: string,
 ): Promise<{ document: DocumentRow; items: DocumentItemRow[] }> {
