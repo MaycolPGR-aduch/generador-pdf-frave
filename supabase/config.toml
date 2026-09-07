@@ -16,8 +16,22 @@ enabled = true
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["https://*.pages.dev"]
+site_url = "https://generador-pdf-frave.pages.dev"
+additional_redirect_urls = ["https://generador-pdf-frave.pages.dev", "http://localhost:5173"]
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [functions.preview-document]
 verify_jwt = true
