@@ -119,6 +119,7 @@ Despliega las funciones operativas:
 pnpm exec supabase functions deploy preview-document
 pnpm exec supabase functions deploy generate-document
 pnpm exec supabase functions deploy create-share-link
+pnpm exec supabase functions deploy delete-document-pdf
 pnpm exec supabase functions deploy admin-invite-user
 ```
 

@@ -26,10 +26,11 @@ Deno.serve(async (request) => {
       return errorResponse('No autorizado', 403);
     const { data: file, error: fileError } = await admin
       .from('document_files')
-      .select('storage_path')
+      .select('storage_path, deleted_at')
       .eq('document_id', body.documentId)
       .single();
     if (fileError || !file) return errorResponse('Archivo no encontrado', 404);
+    if (file.deleted_at) return errorResponse('El PDF fue eliminado para liberar espacio', 410);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const { data: signed, error } = await admin.storage
       .from('documents')

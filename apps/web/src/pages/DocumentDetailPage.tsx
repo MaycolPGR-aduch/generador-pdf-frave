@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Ban,
   CheckCircle2,
+  CircleAlert,
   Copy,
   Download,
   FileCheck2,
@@ -13,17 +14,20 @@ import {
   RefreshCw,
   Send,
   Share2,
+  Trash2,
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createShareLink,
   createConfirmationFromQuote,
   downloadDocument,
+  deleteDocumentPdf,
   duplicateDocument,
   generateDocument,
   loadDocument,
   markDocumentSent,
   previewDocument,
+  regenerateDocumentPdf,
   voidDocument,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
@@ -43,6 +47,7 @@ export function DocumentDetailPage() {
   const { profile, user } = useAuth();
   const client = useQueryClient();
   const [message, setMessage] = useState('');
+  const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
   const query = useQuery({
     queryKey: ['document', id],
     queryFn: () => loadDocument(id),
@@ -52,12 +57,25 @@ export function DocumentDetailPage() {
   const items = query.data?.items ?? [];
   const isLegacy = Boolean(document?.legacy_number);
   const hasNativePdf = Boolean(document?.number);
+  const documentFile = Array.isArray(document?.document_files)
+    ? document.document_files[0] ?? null
+    : document?.document_files ?? null;
+  const pdfDeleted = Boolean(documentFile?.deleted_at);
+  const hasStoredPdf = hasNativePdf && !pdfDeleted;
   const canManage = Boolean(
     user && (document?.created_by === user.id || profile?.role === 'admin'),
   );
   const canVoid =
     profile?.role === 'admin' &&
     Boolean(document && ['generated', 'sent'].includes(document.status));
+  const canDeletePdf =
+    profile?.role === 'admin' &&
+    hasStoredPdf &&
+    Boolean(document && ['generated', 'sent', 'void'].includes(document.status));
+  const canRegeneratePdf =
+    profile?.role === 'admin' &&
+    pdfDeleted &&
+    Boolean(document && ['generated', 'sent', 'void'].includes(document.status));
   const canConvert = Boolean(
     user &&
     document?.type === 'proposal' &&
@@ -68,9 +86,19 @@ export function DocumentDetailPage() {
   const action = useMutation({
     mutationFn: async (
       kind:
-        'generate' | 'preview' | 'share' | 'download' | 'duplicate' | 'convert' | 'sent' | 'void',
+        | 'generate'
+        | 'regenerate'
+        | 'preview'
+        | 'share'
+        | 'download'
+        | 'duplicate'
+        | 'convert'
+        | 'sent'
+        | 'void'
+        | 'deletePdf',
     ) => {
       if (kind === 'generate') return generateDocument(id);
+      if (kind === 'regenerate') return regenerateDocumentPdf(id);
       if (kind === 'preview') return previewDocument(id);
       if (kind === 'share') return createShareLink(id);
       if (kind === 'download') return downloadDocument(id);
@@ -81,17 +109,38 @@ export function DocumentDetailPage() {
         if (!reason) throw new Error('La anulación requiere un motivo.');
         return voidDocument(id, reason);
       }
+      if (kind === 'deletePdf') {
+        const reason = window.prompt('Motivo de eliminación del PDF (obligatorio):')?.trim();
+        if (!reason) throw new Error('La eliminación del PDF requiere un motivo.');
+        if (!window.confirm('Se eliminará el archivo PDF de Storage. El historial comercial se conservará.'))
+          return 'cancelled';
+        return deleteDocumentPdf(id, reason);
+      }
       return markDocumentSent(id);
     },
     onSuccess: (result, kind) => {
-      if (kind === 'generate' && result && typeof result === 'object' && 'downloadUrl' in result)
+      if (
+        (kind === 'generate' || kind === 'regenerate') &&
+        result &&
+        typeof result === 'object' &&
+        'downloadUrl' in result
+      )
         window.open(String(result.downloadUrl), '_blank', 'noopener,noreferrer');
       if (kind === 'share' && result && typeof result === 'object' && 'url' in result) {
         void navigator.clipboard?.writeText(String(result.url));
+        setMessageTone('success');
         setMessage('Enlace copiado. Caduca en siete días.');
       }
       if ((kind === 'duplicate' || kind === 'convert') && typeof result === 'string')
         navigate(`/documents/${result}`);
+      if (kind === 'deletePdf' && result !== 'cancelled') {
+        setMessageTone('success');
+        setMessage('PDF eliminado de Storage. El historial comercial se conserva.');
+      }
+      if (kind === 'regenerate') {
+        setMessageTone('success');
+        setMessage('PDF regenerado y almacenado nuevamente.');
+      }
       void client.invalidateQueries({ queryKey: ['document', id] });
       void client.invalidateQueries({ queryKey: ['documents'] });
       if (kind === 'generate' || kind === 'void') {
@@ -99,8 +148,10 @@ export function DocumentDetailPage() {
         void client.invalidateQueries({ queryKey: ['inventory-movements'] });
       }
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo completar la acción.'),
+    onError: (error) => {
+      setMessageTone('error');
+      setMessage(error instanceof Error ? error.message : 'No se pudo completar la acción.');
+    },
   });
   if (query.isLoading) return <div className="loading-line">Cargando documento…</div>;
   if (query.error || !document)
@@ -151,7 +202,7 @@ export function DocumentDetailPage() {
               {document.status === 'generation_failed' ? 'Reintentar PDF' : 'Generar PDF'}
             </button>
           ) : canManage &&
-            hasNativePdf &&
+            hasStoredPdf &&
             (document.status === 'generated' || document.status === 'sent') ? (
             <button className="button primary" onClick={() => action.mutate('share')}>
               <Share2 size={16} />
@@ -185,6 +236,13 @@ export function DocumentDetailPage() {
                 Abrir PDF histórico en Google Drive
               </a>
               {document.legacy_file_name ? <span>{document.legacy_file_name}</span> : null}
+            </div>
+          )}
+          {pdfDeleted && (
+            <div className="notice warning">
+              <CircleAlert size={15} />
+              El PDF almacenado fue eliminado para liberar espacio. El historial comercial permanece
+              disponible.
             </div>
           )}
           <div className="detail-table">
@@ -249,7 +307,7 @@ export function DocumentDetailPage() {
             </button>
           )}
           {canManage &&
-            hasNativePdf &&
+            hasStoredPdf &&
             (document.status === 'generated' || document.status === 'sent') && (
               <button className="side-action" onClick={() => action.mutate('download')}>
                 <Download size={16} />
@@ -259,7 +317,7 @@ export function DocumentDetailPage() {
                 </span>
               </button>
             )}
-          {document.status === 'generated' && canManage && hasNativePdf && (
+          {document.status === 'generated' && canManage && hasStoredPdf && (
             <button className="side-action" onClick={() => action.mutate('sent')}>
               <Send size={16} />
               <span>
@@ -269,7 +327,7 @@ export function DocumentDetailPage() {
             </button>
           )}
           {canManage &&
-            hasNativePdf &&
+            hasStoredPdf &&
             (document.status === 'generated' || document.status === 'sent') && (
               <button className="side-action" onClick={() => action.mutate('share')}>
                 <Share2 size={16} />
@@ -279,6 +337,32 @@ export function DocumentDetailPage() {
                 </span>
               </button>
             )}
+          {canRegeneratePdf && (
+            <button
+              className="side-action"
+              disabled={action.isPending}
+              onClick={() => action.mutate('regenerate')}
+            >
+              <RefreshCw size={16} />
+              <span>
+                <strong>Regenerar PDF</strong>
+                <small>Lo guarda de nuevo usando los datos congelados</small>
+              </span>
+            </button>
+          )}
+          {canDeletePdf && (
+            <button
+              className="side-action danger-action"
+              disabled={action.isPending}
+              onClick={() => action.mutate('deletePdf')}
+            >
+              <Trash2 size={16} />
+              <span>
+                <strong>Eliminar PDF</strong>
+                <small>Libera Storage y conserva el historial</small>
+              </span>
+            </button>
+          )}
           {canVoid && (
             <button className="side-action danger-action" onClick={() => action.mutate('void')}>
               <Ban size={16} />
@@ -315,8 +399,8 @@ export function DocumentDetailPage() {
         </div>
       )}
       {message && (
-        <div className="notice success">
-          <CheckCircle2 size={15} />
+        <div className={`notice ${messageTone}`}>
+          {messageTone === 'success' ? <CheckCircle2 size={15} /> : <CircleAlert size={15} />}
           {message}
         </div>
       )}

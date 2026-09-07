@@ -4,7 +4,8 @@ import { authenticatedUser, serviceClient, isAdmin } from '../_shared/supabase.t
 import { loadPdfData } from '../_shared/document.ts';
 
 async function sha256Hex(bytes: Uint8Array) {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const copy = Uint8Array.from(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer as ArrayBuffer);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 Deno.serve(async (request) => {
@@ -16,34 +17,60 @@ Deno.serve(async (request) => {
     if (request.method !== 'POST') return errorResponse('Método no permitido', 405);
     admin = serviceClient();
     const user = await authenticatedUser(request, admin);
-    const body = (await request.json()) as { documentId?: string; idempotencyKey?: string };
+    const body = (await request.json()) as {
+      documentId?: string;
+      idempotencyKey?: string;
+      regenerate?: boolean;
+    };
     documentId = body.documentId ?? '';
     const key = body.idempotencyKey ?? crypto.randomUUID();
+    const regenerate = body.regenerate === true;
     if (!documentId) return errorResponse('Falta documentId');
     const { data: source } = await admin
       .from('documents')
-      .select('created_by')
+      .select('created_by, status, sequence_year, number')
       .eq('id', documentId)
       .single();
-    if (!source || (source.created_by !== user.id && !(await isAdmin(admin, user.id))))
+    const adminUser = await isAdmin(admin, user.id);
+    if (!source || (source.created_by !== user.id && !adminUser))
       return errorResponse('No autorizado', 403);
-    const { data: finalized, error: finalizeError } = await admin.rpc('finalize_document', {
-      p_document_id: documentId,
-      p_idempotency_key: key,
-    });
-    if (finalizeError) throw finalizeError;
+
+    let storagePath: string | null = null;
+    let status = source.status;
+    if (regenerate) {
+      if (!adminUser) return errorResponse('Solo un administrador puede regenerar un PDF', 403);
+      if (!['generated', 'sent', 'void'].includes(source.status))
+        return errorResponse('El documento no puede regenerarse desde su estado actual');
+      const { data: removedFile, error: removedFileError } = await admin
+        .from('document_files')
+        .select('storage_path, deleted_at')
+        .eq('document_id', documentId)
+        .single();
+      if (removedFileError || !removedFile?.deleted_at)
+        return errorResponse('El PDF no está marcado como eliminado', 409);
+      storagePath = removedFile.storage_path;
+    } else {
+      const { data: finalized, error: finalizeError } = await admin.rpc('finalize_document', {
+        p_document_id: documentId,
+        p_idempotency_key: key,
+      });
+      if (finalizeError) throw finalizeError;
+      status = finalized?.status ?? source.status;
+    }
+
     const pdfData = await loadPdfData(admin, documentId);
     const bytes = await createFravePdf(pdfData);
     const hash = await sha256Hex(bytes);
-    const year = Number(finalized?.sequence_year ?? new Date().getUTCFullYear());
+    const year = Number(source.sequence_year ?? new Date().getUTCFullYear());
     const typePath = pdfData.type;
     const number = pdfData.number ?? `draft-${documentId}`;
-    const storagePath = `documents/${year}/${typePath}/${documentId}/${number}.pdf`;
+    storagePath ??= `documents/${year}/${typePath}/${documentId}/${number}.pdf`;
     const { error: uploadError } = await admin.storage
       .from('documents')
-      .upload(storagePath, bytes, { contentType: 'application/pdf', upsert: false });
-    if (uploadError && !uploadError.message.toLowerCase().includes('already exists'))
+      .upload(storagePath, bytes, { contentType: 'application/pdf', upsert: regenerate });
+    if (uploadError && !regenerate && !uploadError.message.toLowerCase().includes('already exists'))
       throw uploadError;
+    if (uploadError && regenerate) throw uploadError;
     const { error: fileError } = await admin.from('document_files').upsert(
       {
         document_id: documentId,
@@ -51,31 +78,36 @@ Deno.serve(async (request) => {
         sha256: hash,
         file_size_bytes: bytes.byteLength,
         template_version: TEMPLATE_VERSION,
+        deleted_at: null,
+        deleted_by: null,
+        deletion_reason: null,
       },
       { onConflict: 'document_id' },
     );
     if (fileError) throw fileError;
-    const { error: updateError } = await admin
-      .from('documents')
-      .update({ status: 'generated', template_version: TEMPLATE_VERSION, generation_error: null })
-      .eq('id', documentId);
-    if (updateError) throw updateError;
+    if (!regenerate) {
+      const { error: updateError } = await admin
+        .from('documents')
+        .update({ status: 'generated', template_version: TEMPLATE_VERSION, generation_error: null })
+        .eq('id', documentId);
+      if (updateError) throw updateError;
+    }
     const { data: signed, error: signedError } = await admin.storage
       .from('documents')
       .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
     if (signedError) throw signedError;
     await admin.from('audit_logs').insert({
       actor_id: user.id,
-      action: 'generate_document',
+      action: regenerate ? 'regenerate_document_pdf' : 'generate_document',
       entity_type: 'document',
       entity_id: documentId,
       result: 'success',
-      metadata: { number, templateVersion: TEMPLATE_VERSION },
+      metadata: { number, templateVersion: TEMPLATE_VERSION, regenerated: regenerate },
     });
     return json({
       documentId,
       number,
-      status: finalized?.status === 'generating' ? 'generated' : finalized?.status,
+      status: regenerate ? status : 'generated',
       downloadUrl: signed?.signedUrl,
       templateVersion: TEMPLATE_VERSION,
     });

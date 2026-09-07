@@ -122,6 +122,23 @@ export type DocumentRow = {
   created_at: string;
   updated_at: string;
   clients?: Pick<Client, 'legal_name' | 'trade_name' | 'tax_id'> | null;
+  document_files?:
+    | Pick<DocumentFile, 'id' | 'deleted_at' | 'file_size_bytes'>
+    | Pick<DocumentFile, 'id' | 'deleted_at' | 'file_size_bytes'>[]
+    | null;
+};
+
+export type DocumentFile = {
+  id: string;
+  document_id: string;
+  storage_path: string;
+  sha256: string;
+  file_size_bytes: number;
+  template_version: string;
+  created_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  deletion_reason: string | null;
 };
 
 export type InventoryMovement = {

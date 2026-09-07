@@ -17,3 +17,5 @@ El pipeline ejecuta lint, type-check, pruebas de dominio y build. Las migracione
 ## Backups y capacidad
 
 Programa una exportación cifrada nocturna del esquema `public` y una copia periódica cifrada del bucket privado. Conserva 30 copias diarias y 12 mensuales; alerta al 70 % y 85 %. Los enlaces compartidos duran siete días y nunca sustituyen el backup.
+
+Un administrador puede eliminar manualmente un PDF emitido para liberar Storage. La acción exige un motivo, elimina el objeto privado, invalida sus enlaces y queda auditada; no borra el documento comercial, sus totales, número ni movimientos de stock. Un administrador puede regenerar el archivo más adelante con las instantáneas congeladas del documento. No hay borrado automático.

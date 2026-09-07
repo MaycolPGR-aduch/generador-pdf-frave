@@ -24,6 +24,36 @@ function requireSupabase() {
   return supabase;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isJsonResponse(
+  value: unknown,
+): value is { clone: () => { json: () => Promise<unknown> } } {
+  return isRecord(value) && typeof value.clone === 'function' && typeof value.json === 'function';
+}
+
+async function readableFunctionError(error: unknown): Promise<Error> {
+  const fallback =
+    error instanceof Error ? error.message : 'La función no pudo completar la acción.';
+  const context = isRecord(error) ? error.context : undefined;
+
+  if (isJsonResponse(context)) {
+    try {
+      const payload: unknown = await context.clone().json();
+      if (isRecord(payload)) {
+        const message = payload.error ?? payload.message;
+        if (typeof message === 'string' && message.trim()) return new Error(message);
+      }
+    } catch {
+      // Some function failures do not include a JSON response body.
+    }
+  }
+
+  return new Error(fallback);
+}
+
 export async function getProfile(userId: string): Promise<Profile | null> {
   const client = requireSupabase();
   const { data, error } = await client.from('profiles').select('*').eq('id', userId).maybeSingle();
@@ -35,7 +65,7 @@ export async function listDocuments(): Promise<DocumentRow[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from('documents')
-    .select('*, clients(legal_name, trade_name, tax_id)')
+    .select('*, clients(legal_name, trade_name, tax_id), document_files(id, deleted_at, file_size_bytes)')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as DocumentRow[];
@@ -605,7 +635,7 @@ export async function loadDocument(
   const [documentResult, itemsResult] = await Promise.all([
     client
       .from('documents')
-      .select('*, clients(legal_name, trade_name, tax_id)')
+      .select('*, clients(legal_name, trade_name, tax_id), document_files(id, deleted_at, file_size_bytes)')
       .eq('id', id)
       .single(),
     client.from('document_items').select('*').eq('document_id', id).order('position'),
@@ -624,7 +654,7 @@ export async function invokePdfFunction<T>(
 ): Promise<T> {
   const client = requireSupabase();
   const { data, error } = await client.functions.invoke(name, { body });
-  if (error) throw error;
+  if (error) throw await readableFunctionError(error);
   return data as T;
 }
 
@@ -633,7 +663,7 @@ export async function previewDocument(documentId: string): Promise<void> {
   const { data, error } = await client.functions.invoke('preview-document', {
     body: { documentId },
   });
-  if (error) throw error;
+  if (error) throw await readableFunctionError(error);
   const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -647,6 +677,20 @@ export async function generateDocument(
     documentId,
     idempotencyKey: crypto.randomUUID(),
   });
+}
+
+export async function regenerateDocumentPdf(
+  documentId: string,
+): Promise<{ documentId: string; number: string; status: string; downloadUrl: string }> {
+  return invokePdfFunction('generate-document', {
+    documentId,
+    idempotencyKey: crypto.randomUUID(),
+    regenerate: true,
+  });
+}
+
+export async function deleteDocumentPdf(documentId: string, reason: string): Promise<void> {
+  await invokePdfFunction('delete-document-pdf', { documentId, reason });
 }
 
 export async function createShareLink(

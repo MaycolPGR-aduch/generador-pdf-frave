@@ -86,9 +86,15 @@ function DocumentRowView({
   onShare: (id: string) => void;
   onConvert: (id: string) => void;
 }) {
-  const canSend = document.status === 'generated';
+  const documentFile = Array.isArray(document.document_files)
+    ? document.document_files[0] ?? null
+    : document.document_files ?? null;
+  const pdfDeleted = Boolean(documentFile?.deleted_at);
+  const canSend = document.status === 'generated' && !pdfDeleted;
   const canAccessPdf =
-    Boolean(document.number) && (document.status === 'generated' || document.status === 'sent');
+    Boolean(document.number) &&
+    !pdfDeleted &&
+    (document.status === 'generated' || document.status === 'sent');
   const canConvert =
     document.type === 'proposal' && (document.status === 'generated' || document.status === 'sent');
   const [menuOpen, setMenuOpen] = useState(false);
