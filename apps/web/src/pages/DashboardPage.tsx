@@ -87,8 +87,8 @@ function DocumentRowView({
   onConvert: (id: string) => void;
 }) {
   const documentFile = Array.isArray(document.document_files)
-    ? document.document_files[0] ?? null
-    : document.document_files ?? null;
+    ? (document.document_files[0] ?? null)
+    : (document.document_files ?? null);
   const pdfDeleted = Boolean(documentFile?.deleted_at);
   const canSend = document.status === 'generated' && !pdfDeleted;
   const canAccessPdf =

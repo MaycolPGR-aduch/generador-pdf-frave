@@ -5,9 +5,9 @@ import {
   type PDFPage,
   rgb,
   StandardFonts,
-} from "npm:pdf-lib@1.17.1";
+} from 'npm:pdf-lib@1.17.1';
 
-export const TEMPLATE_VERSION = "frave-pdf-v1.2.0";
+export const TEMPLATE_VERSION = 'frave-pdf-v1.2.0';
 type JsonRecord = Record<string, unknown>;
 export type PdfItem = {
   sku: string;
@@ -21,7 +21,7 @@ export type PdfItem = {
   observation?: string | null;
 };
 export type PdfData = {
-  type: "proposal" | "proforma";
+  type: 'proposal' | 'proforma';
   applyIgv: boolean;
   number: string | null;
   validUntil: string;
@@ -42,10 +42,10 @@ const orange = rgb(0.96, 0.42, 0.08);
 const ink = rgb(0.15, 0.14, 0.13);
 const muted = rgb(0.42, 0.4, 0.38);
 const light = rgb(0.96, 0.95, 0.94);
-const textOf = (value: unknown, fallback = "") =>
-  typeof value === "string" ? value : value == null ? fallback : String(value);
+const textOf = (value: unknown, fallback = '') =>
+  typeof value === 'string' ? value : value == null ? fallback : String(value);
 const money = (value: string | null | undefined) =>
-  value ? `USD ${Number(value).toFixed(2)}` : "—";
+  value ? `USD ${Number(value).toFixed(2)}` : '—';
 function colorFromHex(value: string): ReturnType<typeof rgb> {
   const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
   if (!match) return orange;
@@ -56,15 +56,10 @@ function colorFromHex(value: string): ReturnType<typeof rgb> {
     parseInt(hex.slice(4, 6), 16) / 255,
   );
 }
-function wrap(
-  font: PDFFont,
-  value: string,
-  maxWidth: number,
-  size: number,
-): string[] {
+function wrap(font: PDFFont, value: string, maxWidth: number, size: number): string[] {
   const words = value.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
-  let line = "";
+  let line = '';
   for (const word of words) {
     const candidate = line ? `${line} ${word}` : word;
     if (font.widthOfTextAtSize(candidate, size) <= maxWidth || !line) {
@@ -75,7 +70,7 @@ function wrap(
     }
   }
   if (line) lines.push(line);
-  return lines.length ? lines : [""];
+  return lines.length ? lines : [''];
 }
 function drawText(
   page: PDFPage,
@@ -89,7 +84,7 @@ function drawText(
 ): number {
   const lines = maxWidth ? wrap(font, value, maxWidth, size) : [value];
   lines.forEach((line, index) =>
-    page.drawText(line, { x, y: y - index * (size + 2), size, font, color })
+    page.drawText(line, { x, y: y - index * (size + 2), size, font, color }),
   );
   return lines.length * (size + 2);
 }
@@ -111,18 +106,12 @@ function drawTableValue(
     color,
   });
 }
-function header(
-  page: PDFPage,
-  regular: PDFFont,
-  bold: PDFFont,
-  data: PdfData,
-  draft: boolean,
-) {
+function header(page: PDFPage, regular: PDFFont, bold: PDFFont, data: PdfData, draft: boolean) {
   const { width, height } = page.getSize();
   const settings = data.settings;
-  const accent = colorFromHex(textOf(settings.brand_color, "#F47C20"));
-  const brand = "FRAVE";
-  const tagline = "FRAGANCIAS Y ENVASES";
+  const accent = colorFromHex(textOf(settings.brand_color, '#F47C20'));
+  const brand = 'FRAVE';
+  const tagline = 'FRAGANCIAS Y ENVASES';
   const brandSize = 21;
   const taglineSize = 6.3;
   const brandWidth = bold.widthOfTextAtSize(brand, brandSize);
@@ -149,21 +138,21 @@ function header(
     font: bold,
     color: muted,
   });
-  page.drawText(textOf(settings.display_name, "FRAVE - Fragancias y Envases"), {
+  page.drawText(textOf(settings.display_name, 'FRAVE - Fragancias y Envases'), {
     x: 42,
     y: height - 49,
     size: 9.5,
     font: bold,
     color: ink,
   });
-  page.drawText(`RUC ${textOf(settings.tax_id, "—")}`, {
+  page.drawText(`RUC ${textOf(settings.tax_id, '—')}`, {
     x: 42,
     y: height - 63,
     size: 8,
     font: regular,
     color: muted,
   });
-  page.drawText(textOf(settings.primary_address, ""), {
+  page.drawText(textOf(settings.primary_address, ''), {
     x: 42,
     y: height - 76,
     size: 7.5,
@@ -178,7 +167,7 @@ function header(
     color: accent,
   });
   if (draft) {
-    page.drawText("BORRADOR", {
+    page.drawText('BORRADOR', {
       x: width / 2 - 55,
       y: height / 2,
       size: 25,
@@ -203,16 +192,10 @@ function tableHeader(
       font: bold,
       color: rgb(1, 1, 1),
       maxWidth: column.width,
-    })
+    }),
   );
 }
-function footer(
-  page: PDFPage,
-  regular: PDFFont,
-  index: number,
-  total: number,
-  data: PdfData,
-) {
+function footer(page: PDFPage, regular: PDFFont, index: number, total: number, data: PdfData) {
   const { width } = page.getSize();
   page.drawLine({
     start: { x: 42, y: 38 },
@@ -220,17 +203,14 @@ function footer(
     thickness: 0.5,
     color: light,
   });
-  page.drawText(
-    textOf(data.settings.footer_address, "FRAVE · Documento comercial"),
-    {
-      x: 42,
-      y: 25,
-      size: 6.8,
-      font: regular,
-      color: muted,
-      maxWidth: 340,
-    },
-  );
+  page.drawText(textOf(data.settings.footer_address, 'FRAVE · Documento comercial'), {
+    x: 42,
+    y: 25,
+    size: 6.8,
+    font: regular,
+    color: muted,
+    maxWidth: 340,
+  });
   page.drawText(`Página ${index} de ${total}`, {
     x: width - 100,
     y: 25,
@@ -240,14 +220,11 @@ function footer(
   });
 }
 
-export async function createFravePdf(
-  data: PdfData,
-  draft = false,
-): Promise<Uint8Array> {
+export async function createFravePdf(data: PdfData, draft = false): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const accent = colorFromHex(textOf(data.settings.brand_color, "#F47C20"));
+  const accent = colorFromHex(textOf(data.settings.brand_color, '#F47C20'));
   const pages: PDFPage[] = [];
   const margin = 42;
   let page = pdf.addPage([612, 792]);
@@ -256,12 +233,10 @@ export async function createFravePdf(
   let y = 660;
   const { width } = page.getSize();
   const hasTotals = data.totalUsd !== null;
-  const hasIgv = data.type === "proforma" || data.applyIgv;
-  const title = data.type === "proposal"
-    ? "COTIZACIÓN"
-    : "CONFIRMACIÓN DE PEDIDO";
+  const hasIgv = data.type === 'proforma' || data.applyIgv;
+  const title = data.type === 'proposal' ? 'COTIZACIÓN' : 'CONFIRMACIÓN DE PEDIDO';
   page.drawText(title, { x: margin, y, size: 16, font: bold, color: ink });
-  page.drawText(data.number ?? "Documento en borrador", {
+  page.drawText(data.number ?? 'Documento en borrador', {
     x: width - 180,
     y: y + 1,
     size: 8.5,
@@ -270,7 +245,7 @@ export async function createFravePdf(
   });
   y -= 25;
   const client = data.client;
-  page.drawText("DATOS DEL CLIENTE", {
+  page.drawText('DATOS DEL CLIENTE', {
     x: margin,
     y,
     size: 7.5,
@@ -281,14 +256,14 @@ export async function createFravePdf(
   y -= drawText(
     page,
     regular,
-    textOf(client.tradeName || client.legalName, "Cliente"),
+    textOf(client.tradeName || client.legalName, 'Cliente'),
     margin,
     y,
     9,
     ink,
     255,
   );
-  page.drawText(`RUC: ${textOf(client.taxId, "—")}`, {
+  page.drawText(`RUC: ${textOf(client.taxId, '—')}`, {
     x: margin,
     y,
     size: 7.5,
@@ -314,42 +289,41 @@ export async function createFravePdf(
   });
   y -= 24;
   const proposalColumns = [
-    { label: "REF", x: 48, width: 53 },
-    { label: "DENOMINACIÓN", x: 105, width: 245 },
-    { label: "CATEGORÍA", x: 355, width: 105 },
-    { label: "USD/KG", x: 488, width: 70 },
+    { label: 'REF', x: 48, width: 53 },
+    { label: 'DENOMINACIÓN', x: 105, width: 245 },
+    { label: 'CATEGORÍA', x: 355, width: 105 },
+    { label: 'USD/KG', x: 488, width: 70 },
   ];
   const confirmationColumns = [
-    { label: "REF", x: 48, width: 42 },
-    { label: "DENOMINACIÓN", x: 93, width: 143 },
-    { label: "CATEGORÍA", x: 239, width: 78 },
-    { label: "KG/NETO", x: 320, width: 39 },
-    { label: "USD/KG", x: 361, width: 47 },
-    { label: "SUBTOTAL", x: 410, width: 55 },
-    { label: "IGV", x: 467, width: 42 },
-    { label: "USD/TOTAL", x: 511, width: 55 },
+    { label: 'REF', x: 48, width: 42 },
+    { label: 'DENOMINACIÓN', x: 93, width: 143 },
+    { label: 'CATEGORÍA', x: 239, width: 78 },
+    { label: 'KG/NETO', x: 320, width: 39 },
+    { label: 'USD/KG', x: 361, width: 47 },
+    { label: 'SUBTOTAL', x: 410, width: 55 },
+    { label: 'IGV', x: 467, width: 42 },
+    { label: 'USD/TOTAL', x: 511, width: 55 },
   ];
   const quotationColumnsWithoutIgv = [
-    { label: "REF", x: 48, width: 42 },
-    { label: "DENOMINACIÓN", x: 93, width: 175 },
-    { label: "CATEGORÍA", x: 271, width: 77 },
-    { label: "KG/NETO", x: 351, width: 41 },
-    { label: "USD/KG", x: 395, width: 50 },
-    { label: "SUBTOTAL", x: 447, width: 57 },
-    { label: "USD/TOTAL", x: 506, width: 60 },
+    { label: 'REF', x: 48, width: 42 },
+    { label: 'DENOMINACIÓN', x: 93, width: 175 },
+    { label: 'CATEGORÍA', x: 271, width: 77 },
+    { label: 'KG/NETO', x: 351, width: 41 },
+    { label: 'USD/KG', x: 395, width: 50 },
+    { label: 'SUBTOTAL', x: 447, width: 57 },
+    { label: 'USD/TOTAL', x: 506, width: 60 },
   ];
   const columns = hasTotals
-    ? hasIgv ? confirmationColumns : quotationColumnsWithoutIgv
+    ? hasIgv
+      ? confirmationColumns
+      : quotationColumnsWithoutIgv
     : proposalColumns;
   tableHeader(page, bold, columns, y);
   y -= 22;
   for (const item of data.items.filter((row) => row.sku || row.denomination)) {
     const denomLines = wrap(regular, item.denomination, columns[1].width, 7.4);
     const categoryLines = wrap(regular, item.category, columns[2].width, 7.2);
-    const rowHeight = Math.max(
-      20,
-      Math.max(denomLines.length, categoryLines.length) * 10 + 8,
-    );
+    const rowHeight = Math.max(20, Math.max(denomLines.length, categoryLines.length) * 10 + 8);
     if (y - rowHeight < 70) {
       page = pdf.addPage([612, 792]);
       pages.push(page);
@@ -383,7 +357,7 @@ export async function createFravePdf(
         size: 7.4,
         font: regular,
         color: ink,
-      })
+      }),
     );
     categoryLines.forEach((line, index) =>
       page.drawText(line, {
@@ -392,30 +366,23 @@ export async function createFravePdf(
         size: 7.2,
         font: regular,
         color: muted,
-      })
+      }),
     );
     if (!hasTotals) {
       drawTableValue(
         page,
         bold,
-        money(item.unitPriceUsd).replace("USD ", ""),
+        money(item.unitPriceUsd).replace('USD ', ''),
         columns[3].x,
         baseY,
         7.3,
       );
     } else if (hasIgv) {
+      drawTableValue(page, regular, item.quantityKg ?? '—', columns[3].x, baseY, 7.2);
       drawTableValue(
         page,
         regular,
-        item.quantityKg ?? "—",
-        columns[3].x,
-        baseY,
-        7.2,
-      );
-      drawTableValue(
-        page,
-        regular,
-        money(item.unitPriceUsd).replace("USD ", ""),
+        money(item.unitPriceUsd).replace('USD ', ''),
         columns[4].x,
         baseY,
         7.2,
@@ -423,7 +390,7 @@ export async function createFravePdf(
       drawTableValue(
         page,
         regular,
-        money(item.subtotalUsd).replace("USD ", ""),
+        money(item.subtotalUsd).replace('USD ', ''),
         columns[5].x,
         baseY,
         7.2,
@@ -431,7 +398,7 @@ export async function createFravePdf(
       drawTableValue(
         page,
         regular,
-        money(item.taxUsd).replace("USD ", ""),
+        money(item.taxUsd).replace('USD ', ''),
         columns[6].x,
         baseY,
         7.2,
@@ -439,24 +406,17 @@ export async function createFravePdf(
       drawTableValue(
         page,
         bold,
-        money(item.totalUsd).replace("USD ", ""),
+        money(item.totalUsd).replace('USD ', ''),
         columns[7].x,
         baseY,
         7.2,
       );
     } else {
+      drawTableValue(page, regular, item.quantityKg ?? '—', columns[3].x, baseY, 7.2);
       drawTableValue(
         page,
         regular,
-        item.quantityKg ?? "—",
-        columns[3].x,
-        baseY,
-        7.2,
-      );
-      drawTableValue(
-        page,
-        regular,
-        money(item.unitPriceUsd).replace("USD ", ""),
+        money(item.unitPriceUsd).replace('USD ', ''),
         columns[4].x,
         baseY,
         7.2,
@@ -464,7 +424,7 @@ export async function createFravePdf(
       drawTableValue(
         page,
         regular,
-        money(item.subtotalUsd).replace("USD ", ""),
+        money(item.subtotalUsd).replace('USD ', ''),
         columns[5].x,
         baseY,
         7.2,
@@ -472,7 +432,7 @@ export async function createFravePdf(
       drawTableValue(
         page,
         bold,
-        money(item.totalUsd).replace("USD ", ""),
+        money(item.totalUsd).replace('USD ', ''),
         columns[6].x,
         baseY,
         7.2,
@@ -494,7 +454,7 @@ export async function createFravePdf(
       y = 660;
     }
     y -= 14;
-    page.drawText("RESUMEN", {
+    page.drawText('RESUMEN', {
       x: 375,
       y,
       size: 7.5,
@@ -503,12 +463,12 @@ export async function createFravePdf(
     });
     y -= 16;
     const totalRows: Array<[string, string | null]> = [
-      ["Subtotal", data.subtotalUsd],
-      ["TOTAL", data.totalUsd],
+      ['Subtotal', data.subtotalUsd],
+      ['TOTAL', data.totalUsd],
     ];
-    if (hasIgv) totalRows.splice(1, 0, ["IGV", data.taxUsd]);
+    if (hasIgv) totalRows.splice(1, 0, ['IGV', data.taxUsd]);
     totalRows.forEach(([label, amount], index) => {
-      const isTotal = label === "TOTAL";
+      const isTotal = label === 'TOTAL';
       page.drawText(label, {
         x: 375,
         y: y - index * 17,
@@ -532,7 +492,7 @@ export async function createFravePdf(
     header(page, regular, bold, data, draft);
     y = 660;
   }
-  page.drawText("CONDICIONES COMERCIALES", {
+  page.drawText('CONDICIONES COMERCIALES', {
     x: margin,
     y,
     size: 7.5,
@@ -559,9 +519,9 @@ export async function createFravePdf(
     y -= drawText(page, regular, `• ${condition}`, margin, y, 7.3, muted, 520);
     if (y < 75) break;
   }
-  if (data.type === "proforma" && data.banks.length) {
+  if (data.type === 'proforma' && data.banks.length) {
     y -= 12;
-    page.drawText("CUENTAS BANCARIAS", {
+    page.drawText('CUENTAS BANCARIAS', {
       x: margin,
       y,
       size: 7.5,
@@ -572,11 +532,9 @@ export async function createFravePdf(
     for (const bank of data.banks) {
       if (y < 65) break;
       page.drawText(
-        `${textOf(bank.bank_name)} · ${textOf(bank.currency)} · ${
-          textOf(bank.account_type)
-        } · ${textOf(bank.account_number)}${
-          bank.cci ? ` · CCI ${textOf(bank.cci)}` : ""
-        }`,
+        `${textOf(bank.bank_name)} · ${textOf(bank.currency)} · ${textOf(
+          bank.account_type,
+        )} · ${textOf(bank.account_number)}${bank.cci ? ` · CCI ${textOf(bank.cci)}` : ''}`,
         { x: margin, y, size: 7.1, font: regular, color: muted },
       );
       y -= 12;
@@ -589,7 +547,7 @@ export async function createFravePdf(
     y = 660;
   }
   y -= 14;
-  page.drawText("ATENCIÓN COMERCIAL", {
+  page.drawText('ATENCIÓN COMERCIAL', {
     x: margin,
     y,
     size: 7.5,
@@ -597,14 +555,14 @@ export async function createFravePdf(
     color: accent,
   });
   y -= 17;
-  page.drawText(textOf(data.seller.fullName, "Equipo comercial FRAVE"), {
+  page.drawText(textOf(data.seller.fullName, 'Equipo comercial FRAVE'), {
     x: margin,
     y,
     size: 8,
     font: bold,
     color: ink,
   });
-  page.drawText(textOf(data.seller.area, "Área comercial"), {
+  page.drawText(textOf(data.seller.area, 'Área comercial'), {
     x: margin,
     y: y - 12,
     size: 7.2,
@@ -630,8 +588,6 @@ export async function createFravePdf(
     });
   }
   const totalPages = pages.length;
-  pages.forEach((current, index) =>
-    footer(current, regular, index + 1, totalPages, data)
-  );
+  pages.forEach((current, index) => footer(current, regular, index + 1, totalPages, data));
   return pdf.save();
 }

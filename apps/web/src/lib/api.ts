@@ -65,7 +65,9 @@ export async function listDocuments(): Promise<DocumentRow[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from('documents')
-    .select('*, clients(legal_name, trade_name, tax_id), document_files(id, deleted_at, file_size_bytes)')
+    .select(
+      '*, clients(legal_name, trade_name, tax_id), document_files(id, deleted_at, file_size_bytes)',
+    )
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as DocumentRow[];
@@ -648,7 +650,9 @@ export async function loadDocument(
   const [documentResult, itemsResult] = await Promise.all([
     client
       .from('documents')
-      .select('*, clients(legal_name, trade_name, tax_id), document_files(id, deleted_at, file_size_bytes)')
+      .select(
+        '*, clients(legal_name, trade_name, tax_id), document_files(id, deleted_at, file_size_bytes)',
+      )
       .eq('id', id)
       .single(),
     client.from('document_items').select('*').eq('document_id', id).order('position'),

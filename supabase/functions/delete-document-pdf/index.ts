@@ -10,7 +10,8 @@ Deno.serve(async (request) => {
 
     const admin = serviceClient();
     const user = await authenticatedUser(request, admin);
-    if (!(await isAdmin(admin, user.id))) return errorResponse('Solo un administrador puede eliminar PDFs', 403);
+    if (!(await isAdmin(admin, user.id)))
+      return errorResponse('Solo un administrador puede eliminar PDFs', 403);
 
     const body = (await request.json()) as { documentId?: string; reason?: string };
     const documentId = body.documentId?.trim();
@@ -35,7 +36,9 @@ Deno.serve(async (request) => {
     if (fileError || !file) return errorResponse('El documento no tiene un PDF almacenado', 404);
     if (file.deleted_at) return errorResponse('El PDF ya fue eliminado', 409);
 
-    const { error: storageError } = await admin.storage.from('documents').remove([file.storage_path]);
+    const { error: storageError } = await admin.storage
+      .from('documents')
+      .remove([file.storage_path]);
     if (storageError) throw storageError;
 
     const deletedAt = new Date().toISOString();

@@ -59,8 +59,8 @@ export function DocumentDetailPage() {
   const isLegacy = Boolean(document?.legacy_number);
   const hasNativePdf = Boolean(document?.number);
   const documentFile = Array.isArray(document?.document_files)
-    ? document.document_files[0] ?? null
-    : document?.document_files ?? null;
+    ? (document.document_files[0] ?? null)
+    : (document?.document_files ?? null);
   const pdfDeleted = Boolean(documentFile?.deleted_at);
   const hasStoredPdf = hasNativePdf && !pdfDeleted;
   const canManage = Boolean(
@@ -120,7 +120,11 @@ export function DocumentDetailPage() {
       if (kind === 'deletePdf') {
         const reason = window.prompt('Motivo de eliminación del PDF (obligatorio):')?.trim();
         if (!reason) throw new Error('La eliminación del PDF requiere un motivo.');
-        if (!window.confirm('Se eliminará el archivo PDF de Storage. El historial comercial se conservará.'))
+        if (
+          !window.confirm(
+            'Se eliminará el archivo PDF de Storage. El historial comercial se conservará.',
+          )
+        )
           return 'cancelled';
         return deleteDocumentPdf(id, reason);
       }
@@ -273,9 +277,7 @@ export function DocumentDetailPage() {
                 <span>{item.category_snapshot}</span>
                 <span>{item.quantity_kg == null ? '—' : `${item.quantity_kg} kg`}</span>
                 <span>
-                  {hasTotals
-                    ? `USD ${item.total_usd ?? '—'}`
-                    : `USD ${item.unit_price_usd ?? '—'}`}
+                  {hasTotals ? `USD ${item.total_usd ?? '—'}` : `USD ${item.unit_price_usd ?? '—'}`}
                 </span>
               </div>
             ))}
