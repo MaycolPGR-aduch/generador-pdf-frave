@@ -77,8 +77,9 @@ for (const file of files) {
           unitPriceUsd: first(row, ['Precio', 'USD/Kg', 'USD / Kg', 'Precio USD/kg']),
           variants: Object.entries(row)
             .filter(([header]) => /^variacion\s*\d*$/i.test(key(header)))
-            .map(([, value]) => text(value))
-            .filter(Boolean),
+            .map(([header, value]) => ({ header, value: text(value) }))
+            .filter(({ header, value }) => value && key(value) !== key(header))
+            .map(({ value }) => value),
         };
         if (!product.name || !product.unitPriceUsd) continue;
         const productKey = key(sku);
