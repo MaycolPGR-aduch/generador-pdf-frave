@@ -1019,6 +1019,13 @@ textarea {
 .item-line > div {
   min-width: 0;
 }
+.item-quantity {
+  display: grid;
+  gap: 4px;
+}
+.item-quantity input {
+  width: 100%;
+}
 .variant-select {
   color: #7b736d;
   font-size: 0.7rem;

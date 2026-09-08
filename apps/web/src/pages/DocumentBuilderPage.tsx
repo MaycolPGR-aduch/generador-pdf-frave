@@ -58,6 +58,8 @@ const schema = z
     });
   });
 type FormValues = z.infer<typeof schema>;
+const formText = (value: string | number | null | undefined) =>
+  value == null ? '' : String(value);
 const todayPlus = (days: number) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -69,6 +71,7 @@ export function DocumentBuilderPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const [step, setStep] = useState(1);
+  const [stepMessage, setStepMessage] = useState('');
   const [saved, setSaved] = useState('');
   const clients = useQuery({ queryKey: ['clients'], queryFn: listClients });
   const products = useQuery({ queryKey: ['products'], queryFn: listProducts });
@@ -137,8 +140,8 @@ export function DocumentBuilderPage() {
         productId: item.product_id,
         variantId: item.variant_id ?? '',
         sourceQuoteItemId: item.source_quote_item_id ?? '',
-        quotedUnitPriceUsd: item.source_quote_item_id ? (item.unit_price_usd ?? '') : '',
-        quantityKg: item.quantity_kg ?? '',
+        quotedUnitPriceUsd: item.source_quote_item_id ? formText(item.unit_price_usd) : '',
+        quantityKg: formText(item.quantity_kg),
         observation: item.observation ?? '',
       })),
     });
@@ -254,7 +257,12 @@ export function DocumentBuilderPage() {
           ? ['paymentMethod', 'deliveryMethod', 'validUntil']
           : ['items'],
     );
-    if (valid) setStep((current) => Math.min(current + 1, 4));
+    if (valid) {
+      setStepMessage('');
+      setStep((current) => Math.min(current + 1, 4));
+    } else {
+      setStepMessage('Revisa los campos marcados antes de continuar.');
+    }
   }
   const submit = form.handleSubmit((values) => save.mutate(values));
   const selectedClient = clients.data?.find((client) => client.id === form.getValues('clientId'));
@@ -486,6 +494,7 @@ export function DocumentBuilderPage() {
                 </div>
                 {fields.map((field, index) => {
                   const item = watchedItems[index];
+                  const quantityError = form.formState.errors.items?.[index]?.quantityKg?.message;
                   const product = products.data?.find((p) => p.id === item?.productId);
                   const options =
                     variants.data?.filter((variant) => variant.product_id === product?.id) ?? [];
@@ -535,13 +544,17 @@ export function DocumentBuilderPage() {
                           </select>
                         )}
                       </div>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        placeholder={type === 'proforma' ? '0.000' : 'Opcional'}
-                        {...form.register(`items.${index}.quantityKg`)}
-                      />
+                      <div className="item-quantity">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          placeholder={type === 'proforma' ? '0.000' : 'Opcional'}
+                          aria-invalid={Boolean(quantityError)}
+                          {...form.register(`items.${index}.quantityKg`)}
+                        />
+                        {quantityError && <small className="field-error">{quantityError}</small>}
+                      </div>
                       <span className="price-cell">
                         {product ? `USD ${formatDecimal(displayedPrice ?? '0', 2)}` : '—'}
                         {product && <small>Stock: {formatDecimal(product.stock_kg, 3)} kg</small>}
@@ -565,6 +578,7 @@ export function DocumentBuilderPage() {
               {form.formState.errors.items?.root && (
                 <small className="field-error">{form.formState.errors.items.root.message}</small>
               )}
+              {stepMessage && <div className="notice error">{stepMessage}</div>}
             </div>
           )}
           {step === 4 && (
