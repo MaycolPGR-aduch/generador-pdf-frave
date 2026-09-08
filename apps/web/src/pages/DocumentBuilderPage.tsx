@@ -17,6 +17,7 @@ import {
   listProducts,
   listVariants,
   loadCompanySettings,
+  getSuggestedExchangeRate,
   updateDraft,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
@@ -33,6 +34,10 @@ const schema = z
   .object({
     type: z.enum(['proposal', 'proforma']),
     applyIgv: z.boolean(),
+    currency: z.enum(['USD', 'PEN']),
+    exchangeRatePenPerUsd: z.string().optional(),
+    exchangeRateSource: z.string().optional(),
+    exchangeRateObservedAt: z.string().optional(),
     clientId: z.string().min(1, 'Selecciona un cliente'),
     contactId: z.string().optional(),
     addressId: z.string().optional(),
@@ -43,6 +48,17 @@ const schema = z
     items: z.array(itemSchema).min(1, 'Agrega al menos un producto').max(100),
   })
   .superRefine((values, context) => {
+    if (
+      values.currency === 'PEN' &&
+      (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(values.exchangeRatePenPerUsd ?? '') ||
+        Number(values.exchangeRatePenPerUsd) <= 0)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['exchangeRatePenPerUsd'],
+        message: 'Ingresa una tasa válida (hasta 6 decimales)',
+      });
+    }
     values.items.forEach((item, index) => {
       if (
         values.type === 'proforma' &&
@@ -91,6 +107,10 @@ export function DocumentBuilderPage() {
     defaultValues: {
       type: 'proposal',
       applyIgv: true,
+      currency: 'USD',
+      exchangeRatePenPerUsd: '',
+      exchangeRateSource: '',
+      exchangeRateObservedAt: '',
       clientId: '',
       contactId: '',
       addressId: '',
@@ -129,6 +149,10 @@ export function DocumentBuilderPage() {
     form.reset({
       type: document.type,
       applyIgv: document.apply_igv,
+      currency: document.currency ?? 'USD',
+      exchangeRatePenPerUsd: formText(document.exchange_rate_pen_per_usd),
+      exchangeRateSource: document.exchange_rate_source ?? '',
+      exchangeRateObservedAt: document.exchange_rate_observed_at ?? '',
       clientId: document.client_id,
       contactId: document.contact_id ?? '',
       addressId: document.address_id ?? '',
@@ -147,6 +171,8 @@ export function DocumentBuilderPage() {
     });
   }, [existing.data, form]);
   const type = form.watch('type');
+  const currency = form.watch('currency');
+  const exchangeRatePenPerUsd = form.watch('exchangeRatePenPerUsd');
   const isConvertedConfirmation = Boolean(existing.data?.document.source_quote_id);
   const applyIgv = form.watch('applyIgv');
   const watchedItems = form.watch('items');
@@ -171,16 +197,26 @@ export function DocumentBuilderPage() {
     [watchedItems],
   );
   const shouldCalculateTotals = type === 'proforma' || hasCompleteQuantities;
+  const exchangeRate = useMemo(() => {
+    if (currency === 'USD') return 1;
+    const value = Number(exchangeRatePenPerUsd);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }, [currency, exchangeRatePenPerUsd]);
+  const priceInDocumentCurrency = (priceUsd: string | number | null | undefined) => {
+    if (priceUsd == null || exchangeRate == null) return null;
+    return (Number(priceUsd) * exchangeRate).toFixed(4);
+  };
   const previewTotals = useMemo(() => {
-    if (!shouldCalculateTotals) return null;
+    if (!shouldCalculateTotals || exchangeRate == null) return null;
     const lines = watchedItems
       .map((item) => {
         const product = products.data?.find((p) => p.id === item.productId);
         const variant = variants.data?.find((v) => v.id === item.variantId);
         const price =
           item.quotedUnitPriceUsd || variant?.price_override_usd || product?.unit_price_usd;
-        return price && item.quantityKg
-          ? { quantityKg: item.quantityKg, unitPriceUsd: String(price) }
+        const documentPrice = priceInDocumentCurrency(price);
+        return documentPrice && item.quantityKg
+          ? { quantityKg: item.quantityKg, unitPriceUsd: documentPrice }
           : null;
       })
       .filter((line): line is { quantityKg: string; unitPriceUsd: string } => Boolean(line));
@@ -202,7 +238,17 @@ export function DocumentBuilderPage() {
     type,
     variants.data,
     watchedItems,
+    exchangeRate,
+    currency,
   ]);
+  const suggestedRate = useMutation({
+    mutationFn: getSuggestedExchangeRate,
+    onSuccess: (data) => {
+      form.setValue('exchangeRatePenPerUsd', data.rate, { shouldValidate: true });
+      form.setValue('exchangeRateSource', data.source);
+      form.setValue('exchangeRateObservedAt', data.observedAt ?? '');
+    },
+  });
   const save = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!user) throw new Error('Sesión no disponible');
@@ -225,6 +271,13 @@ export function DocumentBuilderPage() {
       const input = {
         type: values.type,
         applyIgv: values.applyIgv,
+        currency: values.currency,
+        exchangeRatePenPerUsd:
+          values.currency === 'PEN' ? values.exchangeRatePenPerUsd?.trim() : undefined,
+        exchangeRateSource:
+          values.currency === 'PEN' ? values.exchangeRateSource?.trim() : undefined,
+        exchangeRateObservedAt:
+          values.currency === 'PEN' ? values.exchangeRateObservedAt || undefined : undefined,
         clientId: values.clientId,
         contactId: values.contactId || undefined,
         addressId: values.addressId || undefined,
@@ -254,7 +307,7 @@ export function DocumentBuilderPage() {
       step === 1
         ? ['type', 'clientId']
         : step === 2
-          ? ['paymentMethod', 'deliveryMethod', 'validUntil']
+          ? ['paymentMethod', 'deliveryMethod', 'validUntil', 'currency', 'exchangeRatePenPerUsd']
           : ['items'],
     );
     if (valid) {
@@ -392,6 +445,29 @@ export function DocumentBuilderPage() {
               </div>
               <div className="two-columns">
                 <label>
+                  Moneda del documento
+                  <select
+                    disabled={isConvertedConfirmation}
+                    {...form.register('currency')}
+                    onChange={(event) => {
+                      form.setValue('currency', event.target.value as 'USD' | 'PEN', {
+                        shouldValidate: true,
+                      });
+                      if (event.target.value === 'USD') {
+                        form.setValue('exchangeRatePenPerUsd', '');
+                        form.setValue('exchangeRateSource', '');
+                        form.setValue('exchangeRateObservedAt', '');
+                      }
+                    }}
+                  >
+                    <option value="USD">Dólares estadounidenses (USD)</option>
+                    <option value="PEN">Soles peruanos (PEN)</option>
+                  </select>
+                  {isConvertedConfirmation && (
+                    <small className="field-help">Se conserva la moneda de la cotización.</small>
+                  )}
+                </label>
+                <label>
                   Forma de pago
                   <select required {...form.register('paymentMethod')}>
                     <option value="">Seleccionar modalidad…</option>
@@ -431,6 +507,59 @@ export function DocumentBuilderPage() {
                   <input type="date" {...form.register('validUntil')} />
                 </label>
               </div>
+              {currency === 'PEN' && (
+                <div className="exchange-rate-card">
+                  <div>
+                    <strong>Tasa de conversión</strong>
+                    <small>Venta USD/PEN. Puedes ajustarla antes de guardar.</small>
+                  </div>
+                  <label>
+                    S/ por USD
+                    <input
+                      type="number"
+                      min="0.000001"
+                      step="0.000001"
+                      disabled={isConvertedConfirmation}
+                      {...form.register('exchangeRatePenPerUsd')}
+                      onChange={(event) => {
+                        form.setValue('exchangeRatePenPerUsd', event.target.value, {
+                          shouldValidate: true,
+                        });
+                        form.setValue('exchangeRateSource', 'Manual');
+                        form.setValue('exchangeRateObservedAt', '');
+                      }}
+                    />
+                    {form.formState.errors.exchangeRatePenPerUsd && (
+                      <small className="field-error">
+                        {form.formState.errors.exchangeRatePenPerUsd.message}
+                      </small>
+                    )}
+                  </label>
+                  {!isConvertedConfirmation && (
+                    <button
+                      type="button"
+                      className="button secondary small"
+                      disabled={suggestedRate.isPending}
+                      onClick={() => suggestedRate.mutate()}
+                    >
+                      {suggestedRate.isPending ? 'Consultando…' : 'Usar tasa BCRP'}
+                    </button>
+                  )}
+                  {form.watch('exchangeRateSource') && (
+                    <small className="exchange-rate-source">
+                      Fuente: {form.watch('exchangeRateSource')}
+                      {form.watch('exchangeRateObservedAt')
+                        ? ` · ${form.watch('exchangeRateObservedAt')}`
+                        : ''}
+                    </small>
+                  )}
+                  {suggestedRate.error && (
+                    <small className="field-error">
+                      No se pudo consultar BCRP. Ingresa la tasa manualmente.
+                    </small>
+                  )}
+                </div>
+              )}
               <p className="field-help">
                 ¿Necesitas otra modalidad? Un administrador puede agregarla en Configuración.
               </p>
@@ -489,7 +618,7 @@ export function DocumentBuilderPage() {
                   <span>#</span>
                   <span>Producto</span>
                   <span>{type === 'proforma' ? 'Kg/Neto' : 'Kg/Neto (opcional)'}</span>
-                  <span>Precio USD/kg</span>
+                  <span>Precio {currency}/kg</span>
                   <span />
                 </div>
                 {fields.map((field, index) => {
@@ -505,6 +634,7 @@ export function DocumentBuilderPage() {
                     item?.quotedUnitPriceUsd ||
                     variant?.price_override_usd ||
                     product?.unit_price_usd;
+                  const displayedDocumentPrice = priceInDocumentCurrency(displayedPrice);
                   return (
                     <div className="item-line" key={field.id}>
                       <span className="item-number">{index + 1}</span>
@@ -556,7 +686,9 @@ export function DocumentBuilderPage() {
                         {quantityError && <small className="field-error">{quantityError}</small>}
                       </div>
                       <span className="price-cell">
-                        {product ? `USD ${formatDecimal(displayedPrice ?? '0', 2)}` : '—'}
+                        {product && displayedDocumentPrice
+                          ? `${currency === 'PEN' ? 'S/' : 'USD'} ${formatDecimal(displayedDocumentPrice, 2)}`
+                          : '—'}
                         {product && <small>Stock: {formatDecimal(product.stock_kg, 3)} kg</small>}
                         {item?.sourceQuoteItemId && (
                           <small>Precio conservado de la cotización</small>
@@ -614,15 +746,21 @@ export function DocumentBuilderPage() {
                   <>
                     <div>
                       <span>Subtotal preliminar</span>
-                      <strong>USD {previewTotals.subtotalUsd}</strong>
+                      <strong>
+                        {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals.subtotalUsd}
+                      </strong>
                     </div>
                     <div>
                       <span>IGV preliminar</span>
-                      <strong>USD {previewTotals.taxUsd}</strong>
+                      <strong>
+                        {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals.taxUsd}
+                      </strong>
                     </div>
                     <div>
                       <span>Total preliminar</span>
-                      <strong>USD {previewTotals.totalUsd}</strong>
+                      <strong>
+                        {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals.totalUsd}
+                      </strong>
                     </div>
                   </>
                 )}
@@ -646,7 +784,9 @@ export function DocumentBuilderPage() {
           {shouldCalculateTotals ? (
             <div className="summary-total">
               <span>Total preliminar</span>
-              <strong>USD {previewTotals?.totalUsd ?? '—'}</strong>
+              <strong>
+                {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals?.totalUsd ?? '—'}
+              </strong>
               <small>
                 {type === 'proposal' && !applyIgv
                   ? 'IGV no aplicado a esta cotización'
@@ -657,7 +797,7 @@ export function DocumentBuilderPage() {
             <div className="summary-total">
               <span>Totales pendientes</span>
               <strong>Completa los Kg</strong>
-              <small>La cotización mostrará USD/kg hasta tener todas las cantidades.</small>
+              <small>La cotización mostrará precio por kg hasta tener todas las cantidades.</small>
             </div>
           )}
           {step < 4 ? (

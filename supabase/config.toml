@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.admin-import-migration]
 verify_jwt = false
+
+[functions.get-exchange-rate]
+verify_jwt = true

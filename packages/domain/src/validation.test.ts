@@ -5,6 +5,7 @@ import { validateDocumentDraft } from './validation';
 const draft = (type: 'proposal' | 'proforma', quantityKg?: string): DocumentDraftInput => ({
   type,
   applyIgv: true,
+  currency: 'USD',
   clientId: 'client-id',
   sellerId: 'seller-id',
   paymentMethod: 'Contra entrega',

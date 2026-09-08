@@ -61,6 +61,13 @@ export async function loadPdfData(admin: SupabaseClient, documentId: string): Pr
   return {
     type: document.type,
     applyIgv: document.apply_igv !== false,
+    currency: document.currency === 'PEN' ? 'PEN' : 'USD',
+    exchangeRatePenPerUsd:
+      document.exchange_rate_pen_per_usd == null ? null : str(document.exchange_rate_pen_per_usd),
+    exchangeRateSource:
+      document.exchange_rate_source == null ? null : str(document.exchange_rate_source),
+    exchangeRateObservedAt:
+      document.exchange_rate_observed_at == null ? null : str(document.exchange_rate_observed_at),
     number: document.number,
     validUntil: document.valid_until,
     client: {
@@ -88,14 +95,51 @@ export async function loadPdfData(admin: SupabaseClient, documentId: string): Pr
       category: str(item.category_snapshot),
       quantityKg: item.quantity_kg == null ? null : str(item.quantity_kg),
       unitPriceUsd: str(item.unit_price_usd, '0'),
+      unitPriceDocument: str(item.unit_price_document ?? item.unit_price_usd, '0'),
       subtotalUsd: item.subtotal_usd == null ? null : str(item.subtotal_usd),
       taxUsd: item.tax_usd == null ? null : str(item.tax_usd),
       totalUsd: item.total_usd == null ? null : str(item.total_usd),
+      subtotalDocument:
+        item.subtotal_document == null
+          ? item.subtotal_usd == null
+            ? null
+            : str(item.subtotal_usd)
+          : str(item.subtotal_document),
+      taxDocument:
+        item.tax_document == null
+          ? item.tax_usd == null
+            ? null
+            : str(item.tax_usd)
+          : str(item.tax_document),
+      totalDocument:
+        item.total_document == null
+          ? item.total_usd == null
+            ? null
+            : str(item.total_usd)
+          : str(item.total_document),
       observation: item.observation,
     })),
     subtotalUsd: document.subtotal_usd == null ? null : str(document.subtotal_usd),
     taxUsd: document.tax_usd == null ? null : str(document.tax_usd),
     totalUsd: document.total_usd == null ? null : str(document.total_usd),
+    subtotalDocument:
+      document.subtotal_document == null
+        ? document.subtotal_usd == null
+          ? null
+          : str(document.subtotal_usd)
+        : str(document.subtotal_document),
+    taxDocument:
+      document.tax_document == null
+        ? document.tax_usd == null
+          ? null
+          : str(document.tax_usd)
+        : str(document.tax_document),
+    totalDocument:
+      document.total_document == null
+        ? document.total_usd == null
+          ? null
+          : str(document.total_usd)
+        : str(document.total_document),
     banks: selectedBanks as Array<RecordValue>,
   };
 }

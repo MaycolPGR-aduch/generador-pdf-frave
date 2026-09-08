@@ -84,6 +84,7 @@ export function DocumentDetailPage() {
     (document.status === 'generated' || document.status === 'sent'),
   );
   const hasTotals = document?.total_usd != null;
+  const currencySymbol = document?.currency === 'PEN' ? 'S/' : 'USD';
   const hasIgv = document?.type === 'proforma' || document?.apply_igv;
   const action = useMutation({
     mutationFn: async (
@@ -268,7 +269,9 @@ export function DocumentDetailPage() {
               <span>DENOMINACIÓN</span>
               <span>CATEGORÍA</span>
               <span>KG / NETO</span>
-              <span>{hasTotals ? 'USD / TOTAL' : 'USD / KG'}</span>
+              <span>
+                {hasTotals ? `${document.currency} / TOTAL` : `${document.currency} / KG`}
+              </span>
             </div>
             {items.map((item) => (
               <div className="detail-table-row" key={item.id}>
@@ -277,7 +280,9 @@ export function DocumentDetailPage() {
                 <span>{item.category_snapshot}</span>
                 <span>{item.quantity_kg == null ? '—' : `${item.quantity_kg} kg`}</span>
                 <span>
-                  {hasTotals ? `USD ${item.total_usd ?? '—'}` : `USD ${item.unit_price_usd ?? '—'}`}
+                  {hasTotals
+                    ? `${currencySymbol} ${item.total_document ?? item.total_usd ?? '—'}`
+                    : `${currencySymbol} ${item.unit_price_document ?? item.unit_price_usd ?? '—'}`}
                 </span>
               </div>
             ))}
@@ -286,17 +291,23 @@ export function DocumentDetailPage() {
             <div className="detail-totals">
               <div>
                 <span>Subtotal</span>
-                <strong>USD {document.subtotal_usd}</strong>
+                <strong>
+                  {currencySymbol} {document.subtotal_document ?? document.subtotal_usd}
+                </strong>
               </div>
               {hasIgv && (
                 <div>
                   <span>IGV</span>
-                  <strong>USD {document.tax_usd}</strong>
+                  <strong>
+                    {currencySymbol} {document.tax_document ?? document.tax_usd}
+                  </strong>
                 </div>
               )}
               <div className="total">
                 <span>Total</span>
-                <strong>USD {document.total_usd}</strong>
+                <strong>
+                  {currencySymbol} {document.total_document ?? document.total_usd}
+                </strong>
               </div>
             </div>
           )}

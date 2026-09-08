@@ -130,7 +130,12 @@ function DocumentRowView({
         </span>
       </div>
       <div className="document-date">{formatDate(document.created_at)}</div>
-      {document.total_usd && <div className="document-amount">USD {document.total_usd}</div>}
+      {(document.total_document ?? document.total_usd) && (
+        <div className="document-amount">
+          {document.currency === 'PEN' ? 'S/' : 'USD'}{' '}
+          {document.total_document ?? document.total_usd}
+        </div>
+      )}
       <div className="row-actions">
         <button
           className="icon-button"

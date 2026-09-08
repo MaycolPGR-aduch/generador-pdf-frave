@@ -13,6 +13,15 @@ export function validateDocumentDraft(input: DocumentDraftInput): ValidationIssu
     issues.push({ path: 'paymentMethod', message: 'Indica la modalidad de pago' });
   if (!input.deliveryMethod.trim())
     issues.push({ path: 'deliveryMethod', message: 'Indica la modalidad de entrega' });
+  if (input.currency === 'PEN') {
+    if (
+      !input.exchangeRatePenPerUsd ||
+      !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(input.exchangeRatePenPerUsd) ||
+      Number(input.exchangeRatePenPerUsd) <= 0
+    ) {
+      issues.push({ path: 'exchangeRatePenPerUsd', message: 'Indica una tasa de cambio válida' });
+    }
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.validUntil)) {
     issues.push({ path: 'validUntil', message: 'La vigencia debe tener formato YYYY-MM-DD' });
   }

@@ -149,9 +149,14 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
       'Forma de pago',
       'Forma de entrega',
       'IGV aplicado',
+      'Moneda',
+      'Tasa PEN por USD',
       'Subtotal USD',
       'IGV USD',
       'Total USD',
+      'Subtotal documento',
+      'IGV documento',
+      'Total documento',
       'Fecha de anulación',
       'Motivo de anulación',
     ],
@@ -165,9 +170,14 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
       safeText(document.payment_method),
       safeText(document.delivery_method),
       document.apply_igv ? 'Sí' : 'No',
+      document.currency,
+      asNumber(document.exchange_rate_pen_per_usd),
       asNumber(document.subtotal_usd),
       asNumber(document.tax_usd),
       asNumber(document.total_usd),
+      asNumber(document.subtotal_document),
+      asNumber(document.tax_document),
+      asNumber(document.total_document),
       dateInLima(document.voided_at),
       safeText(document.void_reason),
     ]),
@@ -175,10 +185,10 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
   const documentSheet = XLSX.utils.aoa_to_sheet(documentRows, { cellDates: true });
   setupTable(
     documentSheet,
-    [20, 28, 22, 18, 18, 18, 32, 32, 14, 16, 16, 16, 20, 38],
+    [20, 28, 22, 18, 18, 18, 32, 32, 14, 12, 16, 16, 16, 18, 18, 18, 20, 38],
     documentRows.length,
-    [3, 4, 5, 12],
-    [9, 10, 11],
+    [3, 4, 5, 16],
+    [10, 11, 12, 13, 14, 15],
   );
   XLSX.utils.book_append_sheet(workbook, documentSheet, 'Documentos');
 
@@ -193,10 +203,15 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
       'Denominación',
       'Categoría',
       'Cantidad kg',
+      'Moneda documento',
       'Precio USD/kg',
       'Subtotal USD',
       'IGV USD',
       'Total USD',
+      'Precio documento/kg',
+      'Subtotal documento',
+      'IGV documento',
+      'Total documento',
       'Observación',
     ],
     ...documents.flatMap((document) =>
@@ -210,10 +225,15 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
         safeText(item.denomination_snapshot),
         safeText(item.category_snapshot),
         asNumber(item.quantity_kg),
+        document.currency,
         asNumber(item.unit_price_usd),
         asNumber(item.subtotal_usd),
         asNumber(item.tax_usd),
         asNumber(item.total_usd),
+        asNumber(item.unit_price_document),
+        asNumber(item.subtotal_document),
+        asNumber(item.tax_document),
+        asNumber(item.total_document),
         safeText(item.observation),
       ]),
     ),
@@ -221,10 +241,10 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
   const productSheet = XLSX.utils.aoa_to_sheet(productRows, { cellDates: true });
   setupTable(
     productSheet,
-    [20, 28, 22, 18, 10, 18, 36, 28, 14, 16, 16, 16, 16, 38],
+    [20, 28, 22, 18, 10, 18, 36, 28, 14, 14, 16, 16, 16, 16, 18, 18, 18, 18, 38],
     productRows.length,
     [3],
-    [8, 9, 10, 11, 12],
+    [8, 10, 11, 12, 13, 14, 15, 16, 17],
   );
   XLSX.utils.book_append_sheet(workbook, productSheet, 'Productos');
 

@@ -56,6 +56,11 @@ export interface DocumentDraftInput {
   type: DocumentType;
   /** Cotizaciones may omit IGV; confirmations always calculate it server-side. */
   applyIgv: boolean;
+  currency: 'USD' | 'PEN';
+  /** Required only when the commercial document is expressed in PEN. */
+  exchangeRatePenPerUsd?: string;
+  exchangeRateSource?: string;
+  exchangeRateObservedAt?: string;
   clientId: string;
   sellerId: string;
   contactId?: string;

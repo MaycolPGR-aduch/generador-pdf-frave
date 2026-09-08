@@ -100,10 +100,12 @@ export async function listClientDocumentsForExport(input: {
     .from('documents')
     .select(
       `id, type, status, number, legacy_number, payment_method, delivery_method, valid_until,
-       apply_igv, subtotal_usd, tax_usd, total_usd, sent_at, voided_at, void_reason, created_at,
+       apply_igv, currency, exchange_rate_pen_per_usd, subtotal_usd, tax_usd, total_usd,
+       subtotal_document, tax_document, total_document, sent_at, voided_at, void_reason, created_at,
        document_items(id, document_id, position, product_id, variant_id, source_quote_item_id,
          quantity_kg, observation, sku_snapshot, denomination_snapshot, category_snapshot,
-         unit_price_usd, subtotal_usd, tax_usd, total_usd)`,
+         unit_price_usd, subtotal_usd, tax_usd, total_usd,
+         unit_price_document, subtotal_document, tax_document, total_document)`,
     )
     .eq('client_id', input.clientId)
     .gte('created_at', `${input.from}T00:00:00-05:00`)
@@ -116,6 +118,14 @@ export async function listClientDocumentsForExport(input: {
     subtotal_usd: document.subtotal_usd == null ? null : String(document.subtotal_usd),
     tax_usd: document.tax_usd == null ? null : String(document.tax_usd),
     total_usd: document.total_usd == null ? null : String(document.total_usd),
+    exchange_rate_pen_per_usd:
+      document.exchange_rate_pen_per_usd == null
+        ? null
+        : String(document.exchange_rate_pen_per_usd),
+    subtotal_document:
+      document.subtotal_document == null ? null : String(document.subtotal_document),
+    tax_document: document.tax_document == null ? null : String(document.tax_document),
+    total_document: document.total_document == null ? null : String(document.total_document),
     document_items: (document.document_items ?? []).map((item) => ({
       ...item,
       quantity_kg: item.quantity_kg == null ? null : String(item.quantity_kg),
@@ -123,6 +133,11 @@ export async function listClientDocumentsForExport(input: {
       subtotal_usd: item.subtotal_usd == null ? null : String(item.subtotal_usd),
       tax_usd: item.tax_usd == null ? null : String(item.tax_usd),
       total_usd: item.total_usd == null ? null : String(item.total_usd),
+      unit_price_document:
+        item.unit_price_document == null ? null : String(item.unit_price_document),
+      subtotal_document: item.subtotal_document == null ? null : String(item.subtotal_document),
+      tax_document: item.tax_document == null ? null : String(item.tax_document),
+      total_document: item.total_document == null ? null : String(item.total_document),
     })),
   })) as ClientDocumentExport[];
 }
@@ -563,6 +578,13 @@ export async function createDraft(input: DocumentDraftInput, userId: string): Pr
     .from('documents')
     .insert({
       type: input.type,
+      currency: input.currency,
+      exchange_rate_pen_per_usd:
+        input.currency === 'PEN' ? (input.exchangeRatePenPerUsd ?? null) : null,
+      exchange_rate_source:
+        input.currency === 'PEN' ? input.exchangeRateSource?.trim() || 'Manual' : null,
+      exchange_rate_observed_at:
+        input.currency === 'PEN' ? (input.exchangeRateObservedAt ?? null) : null,
       client_id: input.clientId,
       created_by: userId,
       seller_id: userId,
@@ -604,6 +626,13 @@ export async function updateDraft(
     .from('documents')
     .update({
       type: input.type,
+      currency: input.currency,
+      exchange_rate_pen_per_usd:
+        input.currency === 'PEN' ? (input.exchangeRatePenPerUsd ?? null) : null,
+      exchange_rate_source:
+        input.currency === 'PEN' ? input.exchangeRateSource?.trim() || 'Manual' : null,
+      exchange_rate_observed_at:
+        input.currency === 'PEN' ? (input.exchangeRateObservedAt ?? null) : null,
       client_id: input.clientId,
       payment_method: input.paymentMethod,
       delivery_method: input.deliveryMethod,
@@ -673,6 +702,15 @@ export async function invokePdfFunction<T>(
   const { data, error } = await client.functions.invoke(name, { body });
   if (error) throw await readableFunctionError(error);
   return data as T;
+}
+
+export async function getSuggestedExchangeRate(): Promise<{
+  rate: string;
+  source: string;
+  observedAt: string | null;
+  sourcePeriod: string | null;
+}> {
+  return invokePdfFunction('get-exchange-rate', {});
 }
 
 export async function previewDocument(documentId: string): Promise<void> {

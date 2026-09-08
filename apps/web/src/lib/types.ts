@@ -116,9 +116,16 @@ export type DocumentRow = {
   valid_until: string;
   considerations: string[];
   apply_igv: boolean;
+  currency: 'USD' | 'PEN';
+  exchange_rate_pen_per_usd: string | null;
+  exchange_rate_source: string | null;
+  exchange_rate_observed_at: string | null;
   subtotal_usd: string | null;
   tax_usd: string | null;
   total_usd: string | null;
+  subtotal_document: string | null;
+  tax_document: string | null;
+  total_document: string | null;
   created_at: string;
   updated_at: string;
   clients?: Pick<Client, 'legal_name' | 'trade_name' | 'tax_id'> | null;
@@ -171,6 +178,10 @@ export type DocumentItemRow = {
   subtotal_usd: string | null;
   tax_usd: string | null;
   total_usd: string | null;
+  unit_price_document: string | null;
+  subtotal_document: string | null;
+  tax_document: string | null;
+  total_document: string | null;
 };
 
 export type ClientDocumentExport = Pick<
@@ -184,9 +195,14 @@ export type ClientDocumentExport = Pick<
   | 'delivery_method'
   | 'valid_until'
   | 'apply_igv'
+  | 'currency'
+  | 'exchange_rate_pen_per_usd'
   | 'subtotal_usd'
   | 'tax_usd'
   | 'total_usd'
+  | 'subtotal_document'
+  | 'tax_document'
+  | 'total_document'
   | 'created_at'
 > & {
   sent_at: string | null;
