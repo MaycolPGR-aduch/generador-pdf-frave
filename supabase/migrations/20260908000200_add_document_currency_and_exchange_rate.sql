@@ -137,12 +137,12 @@ declare
   line_subtotal_document numeric(16,2);
   line_tax_document numeric(16,2);
   line_total_document numeric(16,2);
-  subtotal_usd numeric(14,2) := 0;
-  tax_usd numeric(14,2) := 0;
-  total_usd numeric(14,2) := 0;
-  subtotal_document numeric(16,2) := 0;
-  tax_document numeric(16,2) := 0;
-  total_document numeric(16,2) := 0;
+  usd_subtotal_amount numeric(14,2) := 0;
+  usd_tax_amount numeric(14,2) := 0;
+  usd_total_amount numeric(14,2) := 0;
+  document_subtotal_amount numeric(16,2) := 0;
+  document_tax_amount numeric(16,2) := 0;
+  document_total_amount numeric(16,2) := 0;
   issued_year integer := extract(year from timezone('America/Lima', now()));
   retry_failed boolean := false;
   calculate_totals boolean := false;
@@ -188,8 +188,8 @@ begin
       line_subtotal_document := round(item.quantity_kg * item.unit_price_document, 2);
       line_tax_document := round(line_subtotal_document * tax_rate, 2);
       line_total_document := line_subtotal_document + line_tax_document;
-      subtotal_usd := subtotal_usd + line_subtotal_usd; tax_usd := tax_usd + line_tax_usd; total_usd := total_usd + line_total_usd;
-      subtotal_document := subtotal_document + line_subtotal_document; tax_document := tax_document + line_tax_document; total_document := total_document + line_total_document;
+      usd_subtotal_amount := usd_subtotal_amount + line_subtotal_usd; usd_tax_amount := usd_tax_amount + line_tax_usd; usd_total_amount := usd_total_amount + line_total_usd;
+      document_subtotal_amount := document_subtotal_amount + line_subtotal_document; document_tax_amount := document_tax_amount + line_tax_document; document_total_amount := document_total_amount + line_total_document;
     end if;
     update public.document_items set subtotal_usd = line_subtotal_usd, tax_usd = line_tax_usd, total_usd = line_total_usd,
       subtotal_document = line_subtotal_document, tax_document = line_tax_document, total_document = line_total_document where id = item.id;
@@ -207,10 +207,10 @@ begin
     end loop;
   end if;
   update public.documents set number = coalesce(doc.number, public.reserve_document_number(doc.type, issued_year)), sequence_year = coalesce(doc.sequence_year, issued_year),
-    status = 'generating', generation_key = p_idempotency_key, subtotal_usd = case when calculate_totals then subtotal_usd else null end,
-    tax_usd = case when calculate_totals then tax_usd else null end, total_usd = case when calculate_totals then total_usd else null end,
-    subtotal_document = case when calculate_totals then subtotal_document else null end,
-    tax_document = case when calculate_totals then tax_document else null end, total_document = case when calculate_totals then total_document else null end,
+    status = 'generating', generation_key = p_idempotency_key, subtotal_usd = case when calculate_totals then usd_subtotal_amount else null end,
+    tax_usd = case when calculate_totals then usd_tax_amount else null end, total_usd = case when calculate_totals then usd_total_amount else null end,
+    subtotal_document = case when calculate_totals then document_subtotal_amount else null end,
+    tax_document = case when calculate_totals then document_tax_amount else null end, total_document = case when calculate_totals then document_total_amount else null end,
     client_snapshot = jsonb_build_object('legalName', client_row.legal_name, 'tradeName', client_row.trade_name, 'taxId', client_row.tax_id,
       'contact', case when doc.contact_id is null then null else jsonb_build_object('fullName', contact_row.full_name, 'salutation', contact_row.salutation, 'email', contact_row.email, 'phone', contact_row.phone) end,
       'address', case when doc.address_id is null then null else jsonb_build_object('label', address_row.label, 'address', address_row.address, 'district', address_row.district, 'city', address_row.city) end),
