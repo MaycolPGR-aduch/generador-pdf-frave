@@ -827,7 +827,7 @@ export function AdminPage() {
           </div>
           <details className="admin-workspace" open>
             <summary>Crear productos y variantes</summary>
-            <form className="admin-form" onSubmit={submitCatalog}>
+            <div className="admin-form">
               <div className="form-subheading">
                 <Plus size={15} />
                 Nueva categoría
@@ -851,30 +851,38 @@ export function AdminPage() {
                 <Plus size={15} />
                 Nuevo producto
               </div>
-              <ProductFields
-                value={product}
-                categories={categories.data ?? []}
-                onChange={setProduct}
-              />
-              <button className="button primary" disabled={productMutation.isPending}>
-                <Save size={15} />
-                Crear producto
-              </button>
+              <form className="admin-form" onSubmit={submitCatalog}>
+                <ProductFields
+                  value={product}
+                  categories={categories.data ?? []}
+                  onChange={setProduct}
+                />
+                <button className="button primary" disabled={productMutation.isPending}>
+                  <Save size={15} />
+                  Crear producto
+                </button>
+              </form>
               <div className="form-subheading">
                 <Plus size={15} />
                 Nueva variante
               </div>
-              <VariantFields value={variant} products={products.data ?? []} onChange={setVariant} />
-              <button
-                className="button secondary"
-                type="button"
-                onClick={submitVariant}
-                disabled={variantMutation.isPending || !variant.productId || !variant.name.trim()}
+              <form
+                className="admin-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitVariant();
+                }}
               >
-                <Save size={15} />
-                Crear variante
-              </button>
-            </form>
+                <VariantFields value={variant} products={products.data ?? []} onChange={setVariant} />
+                <button
+                  className="button secondary"
+                  disabled={variantMutation.isPending || !variant.productId || !variant.name.trim()}
+                >
+                  <Save size={15} />
+                  Crear variante
+                </button>
+              </form>
+            </div>
           </details>
           <div className="catalog-list-heading catalog-list-heading-spaced">
             <div>
