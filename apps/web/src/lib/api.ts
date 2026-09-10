@@ -484,6 +484,7 @@ export async function loadCompanySettings(): Promise<CompanySettings> {
 export async function updateCompanySettings(input: {
   displayName: string;
   legalName: string;
+  commercialEmail: string;
   taxId: string;
   taxRate: string;
   defaultValidityDays: number;
@@ -501,6 +502,7 @@ export async function updateCompanySettings(input: {
     .update({
       display_name: input.displayName,
       legal_name: input.legalName,
+      commercial_email: input.commercialEmail.trim(),
       tax_id: input.taxId,
       tax_rate: input.taxRate,
       default_validity_days: input.defaultValidityDays,

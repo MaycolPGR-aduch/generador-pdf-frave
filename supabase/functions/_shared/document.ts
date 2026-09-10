@@ -56,6 +56,9 @@ export async function loadPdfData(admin: SupabaseClient, documentId: string): Pr
   const selectedSettings = Object.keys(settingsSnapshot).length
     ? settingsSnapshot
     : (settings ?? {});
+  const commercialEmail = str(
+    selectedSettings.commercial_email ?? selectedSettings.commercialEmail,
+  ).trim();
   const snapshotBanks = selectedSettings.bankAccounts;
   const selectedBanks = Array.isArray(snapshotBanks) ? snapshotBanks : (banks ?? []);
   return {
@@ -79,7 +82,7 @@ export async function loadPdfData(admin: SupabaseClient, documentId: string): Pr
     },
     seller: {
       fullName: selectedSeller.fullName ?? selectedSeller.full_name,
-      email: selectedSeller.email,
+      email: commercialEmail || selectedSeller.email,
       phone: selectedSeller.phone,
       area: selectedSeller.area,
     },

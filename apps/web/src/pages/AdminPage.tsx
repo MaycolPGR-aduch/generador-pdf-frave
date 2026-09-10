@@ -49,6 +49,7 @@ type Tab = 'catalog' | 'clients' | 'settings' | 'users';
 type SettingsForm = {
   displayName: string;
   legalName: string;
+  commercialEmail: string;
   taxId: string;
   taxRate: string;
   defaultValidityDays: number;
@@ -84,6 +85,7 @@ type ClientForm = {
 const emptySettings: SettingsForm = {
   displayName: '',
   legalName: '',
+  commercialEmail: '',
   taxId: '',
   taxRate: '0.1800',
   defaultValidityDays: 30,
@@ -494,6 +496,7 @@ export function AdminPage() {
     setSettingsForm({
       displayName: settings.data.display_name,
       legalName: settings.data.legal_name,
+      commercialEmail: settings.data.commercial_email ?? '',
       taxId: settings.data.tax_id,
       taxRate: settings.data.tax_rate,
       defaultValidityDays: settings.data.default_validity_days,
@@ -873,7 +876,11 @@ export function AdminPage() {
                   submitVariant();
                 }}
               >
-                <VariantFields value={variant} products={products.data ?? []} onChange={setVariant} />
+                <VariantFields
+                  value={variant}
+                  products={products.data ?? []}
+                  onChange={setVariant}
+                />
                 <button
                   className="button secondary"
                   disabled={variantMutation.isPending || !variant.productId || !variant.name.trim()}
@@ -1550,6 +1557,17 @@ export function AdminPage() {
                     value={settingsForm.legalName}
                     onChange={(event) =>
                       setSettingsForm({ ...settingsForm, legalName: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Correo comercial para documentos
+                  <input
+                    type="email"
+                    placeholder="ventas@frave.pe"
+                    value={settingsForm.commercialEmail}
+                    onChange={(event) =>
+                      setSettingsForm({ ...settingsForm, commercialEmail: event.target.value })
                     }
                   />
                 </label>

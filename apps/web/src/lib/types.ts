@@ -55,6 +55,7 @@ export type CompanySettings = {
   id: boolean;
   display_name: string;
   legal_name: string;
+  commercial_email: string;
   tax_id: string;
   tax_rate: string;
   default_validity_days: number;
