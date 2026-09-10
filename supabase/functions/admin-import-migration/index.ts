@@ -28,6 +28,8 @@ type LegacyDocument = {
 };
 type MigrationReport = {
   products?: MigrationProduct[];
+  targetStockKg?: string;
+  dryRun?: boolean;
   clients?: MigrationClient[];
   conflicts?: unknown[];
   migrationRecords?: MigrationRecord[];
@@ -64,12 +66,96 @@ Deno.serve(async (request) => {
     const legacyDocuments = Array.isArray(report.legacyDocuments)
       ? report.legacyDocuments.slice(0, 50_000)
       : [];
+    const targetStockKg = clean(report.targetStockKg);
+    if (targetStockKg && (!/^\d+(\.\d{1,3})?$/.test(targetStockKg) || Number(targetStockKg) < 0)) {
+      throw new Error(
+        'El stock objetivo debe ser mayor o igual a cero y tener hasta tres decimales',
+      );
+    }
     let categoryCount = 0;
     let productCount = 0;
     let variantCount = 0;
+    let stockAdjustmentCount = 0;
     let clientCount = 0;
     let skippedRecords = 0;
     let legacyDocumentCount = 0;
+    if (report.dryRun === true) {
+      const categoryExists = new Map<string, boolean>();
+      let existingProductCount = 0;
+      let missingProductCount = 0;
+      let existingVariantCount = 0;
+      let missingVariantCount = 0;
+
+      for (const source of products) {
+        const sku = clean(source.sku);
+        const name = clean(source.name);
+        const category = clean(source.category) || 'Sin categoría';
+        const price = clean(source.unitPriceUsd);
+        if (!sku || !name || !price) continue;
+
+        const categoryKey = category.toLowerCase();
+        if (!categoryExists.has(categoryKey)) {
+          const categoryResult = await admin
+            .from('product_categories')
+            .select('id')
+            .eq('normalized_name', categoryKey)
+            .maybeSingle();
+          if (categoryResult.error) throw categoryResult.error;
+          categoryExists.set(categoryKey, Boolean(categoryResult.data));
+        }
+
+        const productResult = await admin
+          .from('products')
+          .select('id')
+          .ilike('sku', sku)
+          .maybeSingle();
+        if (productResult.error) throw productResult.error;
+        const variants = Array.isArray(source.variants)
+          ? [...new Set(source.variants.map(clean).filter(Boolean))]
+          : [];
+        if (!productResult.data) {
+          missingProductCount += 1;
+          missingVariantCount += variants.length;
+          continue;
+        }
+
+        existingProductCount += 1;
+        for (const variantName of variants) {
+          const variantResult = await admin
+            .from('product_variants')
+            .select('id')
+            .eq('product_id', productResult.data.id)
+            .ilike('name', variantName)
+            .maybeSingle();
+          if (variantResult.error) throw variantResult.error;
+          if (variantResult.data) existingVariantCount += 1;
+          else missingVariantCount += 1;
+        }
+      }
+
+      let productsNeedingStockAdjustment = 0;
+      if (targetStockKg) {
+        const stockResult = await admin
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .neq('stock_kg', targetStockKg);
+        if (stockResult.error) throw stockResult.error;
+        productsNeedingStockAdjustment = stockResult.count ?? 0;
+      }
+
+      return json({
+        status: 'validated',
+        sourceProducts: products.length,
+        existingCategories: [...categoryExists.values()].filter(Boolean).length,
+        missingCategories: [...categoryExists.values()].filter((exists) => !exists).length,
+        existingProducts: existingProductCount,
+        missingProducts: missingProductCount,
+        existingVariants: existingVariantCount,
+        missingVariants: missingVariantCount,
+        productsNeedingStockAdjustment,
+        targetStockKg: targetStockKg || null,
+      });
+    }
     const { data: fallbackProfile } = await admin
       .from('profiles')
       .select('id')
@@ -114,6 +200,7 @@ Deno.serve(async (request) => {
             name,
             category_id: categoryRow.id,
             unit_price_usd: price,
+            stock_kg: targetStockKg || '0',
             legacy_source: 'xlsx',
           })
           .select('id')
@@ -141,6 +228,15 @@ Deno.serve(async (request) => {
         if (result.error) throw result.error;
         variantCount += 1;
       }
+    }
+
+    if (targetStockKg) {
+      const stockAdjustment = await admin.rpc('set_catalog_stock', {
+        p_target_stock: targetStockKg,
+        p_reason: 'Sincronización de catálogo desde Excel',
+      });
+      if (stockAdjustment.error) throw stockAdjustment.error;
+      stockAdjustmentCount = Number(stockAdjustment.data ?? 0);
     }
 
     for (const source of clients) {
@@ -290,6 +386,7 @@ Deno.serve(async (request) => {
         products: productCount,
         categories: categoryCount,
         variants: variantCount,
+        stockAdjustments: stockAdjustmentCount,
         clients: clientCount,
         records: records.length,
         skippedRecords,
@@ -302,6 +399,7 @@ Deno.serve(async (request) => {
       products: productCount,
       categories: categoryCount,
       variants: variantCount,
+      stockAdjustments: stockAdjustmentCount,
       clients: clientCount,
       records: records.length,
       skippedRecords,

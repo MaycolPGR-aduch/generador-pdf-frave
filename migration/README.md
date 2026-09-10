@@ -13,6 +13,14 @@ documentos— se puede apuntar directamente a la carpeta que contiene los Excel:
 node scripts/migrate-xlsx.mjs . --catalog-only
 ```
 
+Si el catálogo debe establecer un mismo stock para todos los productos, indica
+el objetivo explícitamente. Los productos nuevos se crean con ese saldo inicial
+y los existentes reciben un movimiento de ajuste auditable:
+
+```powershell
+node scripts/migrate-xlsx.mjs . --catalog-only --target-stock-kg 200
+```
+
 Este modo extrae SKU, denominación, categoría, precio y variaciones. Cuando un
 SKU difiere entre archivos, se excluye del reporte de importación hasta que se
 revise manualmente.

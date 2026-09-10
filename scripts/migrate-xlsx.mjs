@@ -16,6 +16,8 @@ const apply = process.argv.includes('--apply');
 const catalogOnly = process.argv.includes('--catalog-only');
 const outputDir = path.resolve('migration/output');
 const text = (value) => (value == null ? '' : String(value).trim());
+const targetStockArgument = process.argv.indexOf('--target-stock-kg');
+const targetStockKg = targetStockArgument >= 0 ? text(process.argv[targetStockArgument + 1]) : '';
 const key = (value) =>
   text(value)
     .normalize('NFD')
@@ -29,6 +31,15 @@ const first = (row, names) => {
   }
   return '';
 };
+
+if (
+  targetStockArgument >= 0 &&
+  (!targetStockKg || !/^\d+(\.\d{1,3})?$/.test(targetStockKg) || Number(targetStockKg) < 0)
+) {
+  throw new Error(
+    'Usa --target-stock-kg con un número mayor o igual a cero y hasta tres decimales.',
+  );
+}
 
 const files = (await fs.readdir(inputDir, { withFileTypes: true }).catch(() => [])).filter(
   (entry) => entry.isFile() && /\.(xlsx|xls)$/i.test(entry.name),
@@ -163,6 +174,7 @@ const report = {
   products: [...products.entries()]
     .filter(([productKey]) => !catalogOnly || !conflictingProductKeys.has(productKey))
     .map(([, entry]) => entry.value),
+  targetStockKg,
   clients: catalogOnly ? [] : [...clients.values()].map((entry) => entry.value),
   legacyDocuments: catalogOnly ? [] : legacyDocuments,
   conflicts,
@@ -176,6 +188,9 @@ const report = {
       ? [
           `Modo catálogo: se excluyeron ${conflictingProductKeys.size} SKU con conflictos entre archivos.`,
           'No se importan clientes, documentos ni registros históricos.',
+          ...(targetStockKg
+            ? [`El stock de todos los productos se ajustará a ${targetStockKg} kg.`]
+            : []),
         ]
       : []),
   ],
