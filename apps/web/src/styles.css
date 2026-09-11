@@ -2038,6 +2038,15 @@ textarea {
   text-align: right;
 }
 
+.supply-viewer-list .variant-viewer-head,
+.supply-viewer-list > div:not(.variant-viewer-head) {
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+
+.supply-viewer-list span {
+  text-align: left;
+}
+
 .full-span {
   grid-column: 1 / -1;
 }

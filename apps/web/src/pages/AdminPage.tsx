@@ -68,6 +68,9 @@ type ProductForm = {
   categoryId: string;
   unitPriceUsd: string;
   initialStockKg: string;
+  supply1: string;
+  supply2: string;
+  supply3: string;
 };
 
 type VariantForm = {
@@ -197,6 +200,30 @@ function ProductFields({
           </small>
         )}
       </label>
+      <label>
+        Insumo 1
+        <input
+          value={value.supply1}
+          onChange={(event) => onChange({ ...value, supply1: event.target.value })}
+          placeholder="Opcional"
+        />
+      </label>
+      <label>
+        Insumo 2
+        <input
+          value={value.supply2}
+          onChange={(event) => onChange({ ...value, supply2: event.target.value })}
+          placeholder="Opcional"
+        />
+      </label>
+      <label>
+        Insumo 3
+        <input
+          value={value.supply3}
+          onChange={(event) => onChange({ ...value, supply3: event.target.value })}
+          placeholder="Opcional"
+        />
+      </label>
     </div>
   );
 }
@@ -301,9 +328,13 @@ export function AdminPage() {
     categoryId: '',
     unitPriceUsd: '',
     initialStockKg: '0',
+    supply1: '',
+    supply2: '',
+    supply3: '',
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [variantViewerProductId, setVariantViewerProductId] = useState<string | null>(null);
+  const [supplyViewerProductId, setSupplyViewerProductId] = useState<string | null>(null);
   const [stockAdjustment, setStockAdjustment] = useState({
     productId: '',
     quantityDeltaKg: '',
@@ -431,6 +462,12 @@ export function AdminPage() {
     [commercialOptions.data],
   );
   const variantViewerProduct = products.data?.find((item) => item.id === variantViewerProductId);
+  const supplyViewerProduct = products.data?.find((item) => item.id === supplyViewerProductId);
+  const supplyViewerItems = supplyViewerProduct
+    ? [supplyViewerProduct.supply_1, supplyViewerProduct.supply_2, supplyViewerProduct.supply_3]
+        .map((name, index) => (name ? { name, position: index + 1 } : null))
+        .filter((supply): supply is { name: string; position: number } => supply !== null)
+    : [];
   const editingClient = clients.data?.find((item) => item.id === editingClientId);
   const variantViewerItems = useMemo(
     () => (variants.data ?? []).filter((item) => item.product_id === variantViewerProductId),
@@ -455,12 +492,24 @@ export function AdminPage() {
       categoryId: item.category_id,
       unitPriceUsd: item.unit_price_usd,
       initialStockKg: item.stock_kg,
+      supply1: item.supply_1 ?? '',
+      supply2: item.supply_2 ?? '',
+      supply3: item.supply_3 ?? '',
     });
   }
 
   function closeProductEdit() {
     setEditingProductId(null);
-    setProduct({ sku: '', name: '', categoryId: '', unitPriceUsd: '', initialStockKg: '0' });
+    setProduct({
+      sku: '',
+      name: '',
+      categoryId: '',
+      unitPriceUsd: '',
+      initialStockKg: '0',
+      supply1: '',
+      supply2: '',
+      supply3: '',
+    });
   }
 
   function startVariantEdit(item: (typeof filteredVariants)[number]) {
@@ -511,15 +560,31 @@ export function AdminPage() {
   }, [settings.data]);
 
   useEffect(() => {
-    if (!editingProductId && !editingVariantId && !editingClientId && !variantViewerProductId)
+    if (
+      !editingProductId &&
+      !editingVariantId &&
+      !editingClientId &&
+      !variantViewerProductId &&
+      !supplyViewerProductId
+    )
       return;
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (editingProductId) {
         setEditingProductId(null);
-        setProduct({ sku: '', name: '', categoryId: '', unitPriceUsd: '', initialStockKg: '0' });
+        setProduct({
+          sku: '',
+          name: '',
+          categoryId: '',
+          unitPriceUsd: '',
+          initialStockKg: '0',
+          supply1: '',
+          supply2: '',
+          supply3: '',
+        });
       }
       if (variantViewerProductId) setVariantViewerProductId(null);
+      if (supplyViewerProductId) setSupplyViewerProductId(null);
       if (editingVariantId) {
         setEditingVariantId(null);
         setVariant({ productId: '', name: '', priceOverrideUsd: '' });
@@ -531,7 +596,13 @@ export function AdminPage() {
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [editingClientId, editingProductId, editingVariantId, variantViewerProductId]);
+  }, [
+    editingClientId,
+    editingProductId,
+    editingVariantId,
+    supplyViewerProductId,
+    variantViewerProductId,
+  ]);
 
   const categoryMutation = useMutation({
     mutationFn: () => createCategory(categoryName),
@@ -1075,6 +1146,14 @@ export function AdminPage() {
                     >
                       <ListTree size={14} />
                       Ver variaciones
+                    </button>
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() => setSupplyViewerProductId(item.id)}
+                    >
+                      <PackageSearch size={14} />
+                      Ver insumos
                     </button>
                   </div>
                 </div>
@@ -1977,6 +2056,64 @@ export function AdminPage() {
                 type="button"
                 className="button primary"
                 onClick={() => setVariantViewerProductId(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {supplyViewerProduct && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSupplyViewerProductId(null);
+          }}
+        >
+          <section
+            className="modal-card variant-viewer-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-supplies-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">Insumos del producto</div>
+                <h2 id="product-supplies-title">{supplyViewerProduct.name}</h2>
+                <p className="muted">{supplyViewerProduct.sku}</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Cerrar insumos"
+                onClick={() => setSupplyViewerProductId(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {supplyViewerItems.length ? (
+              <div className="variant-viewer-list supply-viewer-list">
+                <div className="variant-viewer-head">
+                  <span>Campo</span>
+                  <span>Insumo</span>
+                </div>
+                {supplyViewerItems.map((supply) => (
+                  <div key={`supply-${supply.position}`}>
+                    <strong>Insumo {supply.position}</strong>
+                    <span>{supply.name}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="catalog-list-empty">Este producto no tiene insumos registrados.</div>
+            )}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => setSupplyViewerProductId(null)}
               >
                 Cerrar
               </button>

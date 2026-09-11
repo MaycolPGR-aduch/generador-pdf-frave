@@ -46,6 +46,9 @@ export type Product = {
   category_id: string;
   unit_price_usd: string;
   stock_kg: string;
+  supply_1: string | null;
+  supply_2: string | null;
+  supply_3: string | null;
   active: boolean;
   product_categories?: Array<{ name: string }> | null;
 };

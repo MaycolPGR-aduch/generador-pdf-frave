@@ -147,7 +147,7 @@ export async function listProducts(): Promise<Product[]> {
   const { data, error } = await client
     .from('products')
     .select(
-      'id, sku, name, category_id, unit_price_usd, stock_kg, active, product_categories(name)',
+      'id, sku, name, category_id, unit_price_usd, stock_kg, supply_1, supply_2, supply_3, active, product_categories(name)',
     )
     .eq('active', true)
     .order('name');
@@ -164,7 +164,7 @@ export async function listLowStockProducts(thresholdKg: string): Promise<Product
   const { data, error } = await client
     .from('products')
     .select(
-      'id, sku, name, category_id, unit_price_usd, stock_kg, active, product_categories(name)',
+      'id, sku, name, category_id, unit_price_usd, stock_kg, supply_1, supply_2, supply_3, active, product_categories(name)',
     )
     .eq('active', true)
     .lte('stock_kg', thresholdKg)
@@ -238,6 +238,9 @@ export async function createProduct(input: {
   categoryId: string;
   unitPriceUsd: string;
   initialStockKg: string;
+  supply1: string;
+  supply2: string;
+  supply3: string;
 }): Promise<Product> {
   const client = requireSupabase();
   const { data, error } = await client
@@ -248,6 +251,9 @@ export async function createProduct(input: {
       category_id: input.categoryId,
       unit_price_usd: input.unitPriceUsd,
       stock_kg: input.initialStockKg || '0',
+      supply_1: input.supply1.trim() || null,
+      supply_2: input.supply2.trim() || null,
+      supply_3: input.supply3.trim() || null,
     })
     .select('*, product_categories(name)')
     .single();
@@ -265,6 +271,9 @@ export async function updateProduct(input: {
   name: string;
   categoryId: string;
   unitPriceUsd: string;
+  supply1: string;
+  supply2: string;
+  supply3: string;
 }): Promise<Product> {
   const client = requireSupabase();
   const { data, error } = await client
@@ -274,6 +283,9 @@ export async function updateProduct(input: {
       name: input.name.trim(),
       category_id: input.categoryId,
       unit_price_usd: input.unitPriceUsd,
+      supply_1: input.supply1.trim() || null,
+      supply_2: input.supply2.trim() || null,
+      supply_3: input.supply3.trim() || null,
     })
     .eq('id', input.id)
     .select('*, product_categories(name)')
