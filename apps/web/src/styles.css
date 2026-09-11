@@ -1846,6 +1846,7 @@ textarea {
   border: 1px solid #ebe4de;
   border-radius: 7px;
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   justify-content: stretch;
   padding: 5px;
@@ -1854,7 +1855,7 @@ textarea {
 .product-row-actions .button {
   background: #fff;
   border: 1px solid #e4dbd3;
-  flex: 1;
+  flex: 0 0 auto;
   justify-content: center;
   white-space: nowrap;
 }
@@ -2143,7 +2144,7 @@ textarea {
   }
 
   .product-row-actions .button {
-    flex: 1;
+    flex: 1 1 130px;
   }
 
   .entity-table-head {
