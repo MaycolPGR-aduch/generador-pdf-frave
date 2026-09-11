@@ -32,6 +32,7 @@ import {
   voidDocument,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
+import { formatCurrencyAmount } from '@frave/domain';
 
 const statusLabels: Record<string, string> = {
   draft: 'Borrador',
@@ -86,6 +87,8 @@ export function DocumentDetailPage() {
   const hasTotals = document?.total_usd != null;
   const currencySymbol = document?.currency === 'PEN' ? 'S/' : 'USD';
   const hasIgv = document?.type === 'proforma' || document?.apply_igv;
+  const formatAmount = (value: string | null | undefined) =>
+    value == null ? '—' : formatCurrencyAmount(value);
   const action = useMutation({
     mutationFn: async (
       kind:
@@ -281,8 +284,10 @@ export function DocumentDetailPage() {
                 <span>{item.quantity_kg == null ? '—' : `${item.quantity_kg} kg`}</span>
                 <span>
                   {hasTotals
-                    ? `${currencySymbol} ${item.total_document ?? item.total_usd ?? '—'}`
-                    : `${currencySymbol} ${item.unit_price_document ?? item.unit_price_usd ?? '—'}`}
+                    ? `${currencySymbol} ${formatAmount(item.total_document ?? item.total_usd)}`
+                    : `${currencySymbol} ${formatAmount(
+                        item.unit_price_document ?? item.unit_price_usd,
+                      )}`}
                 </span>
               </div>
             ))}
@@ -292,21 +297,22 @@ export function DocumentDetailPage() {
               <div>
                 <span>Subtotal</span>
                 <strong>
-                  {currencySymbol} {document.subtotal_document ?? document.subtotal_usd}
+                  {currencySymbol}{' '}
+                  {formatAmount(document.subtotal_document ?? document.subtotal_usd)}
                 </strong>
               </div>
               {hasIgv && (
                 <div>
                   <span>IGV</span>
                   <strong>
-                    {currencySymbol} {document.tax_document ?? document.tax_usd}
+                    {currencySymbol} {formatAmount(document.tax_document ?? document.tax_usd)}
                   </strong>
                 </div>
               )}
               <div className="total">
                 <span>Total</span>
                 <strong>
-                  {currencySymbol} {document.total_document ?? document.total_usd}
+                  {currencySymbol} {formatAmount(document.total_document ?? document.total_usd)}
                 </strong>
               </div>
             </div>

@@ -3,6 +3,7 @@ import {
   calculateDocumentTotals,
   calculateLineAmounts,
   centsToMoney,
+  formatCurrencyAmount,
   formatDecimal,
 } from './money';
 
@@ -34,5 +35,10 @@ describe('money calculations', () => {
   it('formats numeric values returned by Postgres numeric columns', () => {
     expect(formatDecimal(17.4, 2)).toBe('17.40');
     expect(formatDecimal('17.4', 4)).toBe('17.4000');
+  });
+
+  it('rounds monetary values to two decimals for display', () => {
+    expect(formatCurrencyAmount('58.835')).toBe('58.84');
+    expect(formatCurrencyAmount('61.1884')).toBe('61.19');
   });
 });

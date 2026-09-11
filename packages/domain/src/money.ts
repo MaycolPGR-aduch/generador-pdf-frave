@@ -59,6 +59,18 @@ export function formatDecimal(value: string | number, fractionDigits = 2): strin
   return `${whole}.${fraction.padEnd(fractionDigits, '0').slice(0, fractionDigits)}`;
 }
 
+/** Formats a monetary amount to two decimals using exact decimal half-up rounding. */
+export function formatCurrencyAmount(value: string | number): string {
+  const decimal = typeof value === 'number' ? String(value) : value;
+  assertDecimal(decimal, 'value');
+
+  const [whole, fraction = ''] = decimal.split('.');
+  let cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0').slice(0, 2));
+  if (Number(fraction[2] ?? '0') >= 5) cents += 1n;
+
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+}
+
 export function calculateDocumentTotals(
   items: Array<Pick<DocumentItemInput, 'quantityKg' | 'unitPriceUsd'>>,
   taxRate: string,

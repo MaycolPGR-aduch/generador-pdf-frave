@@ -27,7 +27,7 @@ import {
   loadCompanySettings,
   markDocumentSent,
 } from '../lib/api';
-import { formatDecimal } from '@frave/domain';
+import { formatCurrencyAmount, formatDecimal } from '@frave/domain';
 import type { DocumentRow } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -133,7 +133,7 @@ function DocumentRowView({
       {(document.total_document ?? document.total_usd) && (
         <div className="document-amount">
           {document.currency === 'PEN' ? 'S/' : 'USD'}{' '}
-          {document.total_document ?? document.total_usd}
+          {formatCurrencyAmount(document.total_document ?? document.total_usd ?? '0')}
         </div>
       )}
       <div className="row-actions">

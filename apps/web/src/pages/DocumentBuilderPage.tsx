@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, ClipboardList, FileDown, Plus, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { calculateDocumentTotals, formatDecimal } from '@frave/domain';
+import { calculateDocumentTotals, formatCurrencyAmount, formatDecimal } from '@frave/domain';
 import {
   createDraft,
   invokePdfFunction,
@@ -687,7 +687,7 @@ export function DocumentBuilderPage() {
                       </div>
                       <span className="price-cell">
                         {product && displayedDocumentPrice
-                          ? `${currency === 'PEN' ? 'S/' : 'USD'} ${formatDecimal(displayedDocumentPrice, 2)}`
+                          ? `${currency === 'PEN' ? 'S/' : 'USD'} ${formatCurrencyAmount(displayedDocumentPrice)}`
                           : '—'}
                         {product && <small>Stock: {formatDecimal(product.stock_kg, 3)} kg</small>}
                         {item?.sourceQuoteItemId && (
@@ -747,19 +747,22 @@ export function DocumentBuilderPage() {
                     <div>
                       <span>Subtotal preliminar</span>
                       <strong>
-                        {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals.subtotalUsd}
+                        {currency === 'PEN' ? 'S/' : 'USD'}{' '}
+                        {formatCurrencyAmount(previewTotals.subtotalUsd)}
                       </strong>
                     </div>
                     <div>
                       <span>IGV preliminar</span>
                       <strong>
-                        {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals.taxUsd}
+                        {currency === 'PEN' ? 'S/' : 'USD'}{' '}
+                        {formatCurrencyAmount(previewTotals.taxUsd)}
                       </strong>
                     </div>
                     <div>
                       <span>Total preliminar</span>
                       <strong>
-                        {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals.totalUsd}
+                        {currency === 'PEN' ? 'S/' : 'USD'}{' '}
+                        {formatCurrencyAmount(previewTotals.totalUsd)}
                       </strong>
                     </div>
                   </>
@@ -785,7 +788,8 @@ export function DocumentBuilderPage() {
             <div className="summary-total">
               <span>Total preliminar</span>
               <strong>
-                {currency === 'PEN' ? 'S/' : 'USD'} {previewTotals?.totalUsd ?? '—'}
+                {currency === 'PEN' ? 'S/' : 'USD'}{' '}
+                {previewTotals ? formatCurrencyAmount(previewTotals.totalUsd) : '—'}
               </strong>
               <small>
                 {type === 'proposal' && !applyIgv
