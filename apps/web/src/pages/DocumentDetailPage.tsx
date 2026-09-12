@@ -21,6 +21,7 @@ import {
   createShareLink,
   createConfirmationFromQuote,
   deleteDraft,
+  deleteVoidedDocument,
   downloadDocument,
   deleteDocumentPdf,
   duplicateDocument,
@@ -36,7 +37,7 @@ import { formatCurrencyAmount } from '@frave/domain';
 
 const statusLabels: Record<string, string> = {
   draft: 'Borrador',
-  generating: 'Generando',
+  generating: 'En generación',
   generated: 'Generado',
   generation_failed: 'Error de generación',
   sent: 'Enviado',
@@ -68,6 +69,7 @@ export function DocumentDetailPage() {
     user && (document?.created_by === user.id || profile?.role === 'admin'),
   );
   const canDeleteDraft = document?.status === 'draft' && canManage;
+  const canDeleteVoidedDocument = profile?.role === 'admin' && document?.status === 'void';
   const canVoid =
     profile?.role === 'admin' &&
     Boolean(document && ['generated', 'sent'].includes(document.status));
@@ -102,6 +104,7 @@ export function DocumentDetailPage() {
         | 'sent'
         | 'void'
         | 'deleteDraft'
+        | 'deleteVoided'
         | 'deletePdf',
     ) => {
       if (kind === 'generate') return generateDocument(id);
@@ -115,6 +118,17 @@ export function DocumentDetailPage() {
         if (!window.confirm('¿Eliminar este borrador? Esta acción no se puede deshacer.'))
           return 'cancelled';
         return deleteDraft(id);
+      }
+      if (kind === 'deleteVoided') {
+        if (
+          !window.confirm(
+            'Eliminarás de forma permanente este documento anulado y su PDF, si existe. Esta acción no se puede deshacer.',
+          )
+        )
+          return 'cancelled';
+        const reason = window.prompt('Motivo de eliminación (obligatorio):')?.trim();
+        if (!reason) throw new Error('La eliminación requiere un motivo.');
+        return deleteVoidedDocument(id, reason);
       }
       if (kind === 'void') {
         const reason = window.prompt('Motivo de anulación (obligatorio):')?.trim();
@@ -149,7 +163,7 @@ export function DocumentDetailPage() {
       }
       if ((kind === 'duplicate' || kind === 'convert') && typeof result === 'string')
         navigate(`/documents/${result}`);
-      if (kind === 'deleteDraft' && result !== 'cancelled') {
+      if ((kind === 'deleteDraft' || kind === 'deleteVoided') && result !== 'cancelled') {
         void client.invalidateQueries({ queryKey: ['documents'] });
         navigate('/');
         return;
@@ -337,6 +351,19 @@ export function DocumentDetailPage() {
               <span>
                 <strong>Eliminar borrador</strong>
                 <small>Elimina este documento sin emitir</small>
+              </span>
+            </button>
+          )}
+          {canDeleteVoidedDocument && (
+            <button
+              className="side-action danger-action"
+              disabled={action.isPending}
+              onClick={() => action.mutate('deleteVoided')}
+            >
+              <Trash2 size={16} />
+              <span>
+                <strong>Eliminar documento anulado</strong>
+                <small>Elimina el registro y su PDF de forma permanente</small>
               </span>
             </button>
           )}

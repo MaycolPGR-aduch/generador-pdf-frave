@@ -686,6 +686,10 @@ export async function deleteDraft(documentId: string): Promise<void> {
   if (!data) throw new Error('El borrador no existe o no tienes permiso para eliminarlo.');
 }
 
+export async function deleteVoidedDocument(documentId: string, reason: string): Promise<void> {
+  await invokePdfFunction('delete-voided-document', { documentId, reason });
+}
+
 export async function loadDocument(
   id: string,
 ): Promise<{ document: DocumentRow; items: DocumentItemRow[] }> {

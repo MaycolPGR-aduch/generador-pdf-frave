@@ -15,11 +15,13 @@ import {
   Send,
   Share2,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   createConfirmationFromQuote,
   createShareLink,
+  deleteVoidedDocument,
   downloadDocument,
   duplicateDocument,
   listDocuments,
@@ -33,7 +35,7 @@ import { useAuth } from '../auth/AuthProvider';
 
 const statusLabels: Record<string, string> = {
   draft: 'Borrador',
-  generating: 'Generando',
+  generating: 'En generación',
   generated: 'Generado',
   generation_failed: 'Error de generación',
   sent: 'Enviado',
@@ -78,6 +80,8 @@ function DocumentRowView({
   onDownload,
   onShare,
   onConvert,
+  onDeleteVoided,
+  canDeleteVoided,
 }: {
   document: DocumentRow;
   onDuplicate: (id: string) => void;
@@ -85,6 +89,8 @@ function DocumentRowView({
   onDownload: (id: string) => void;
   onShare: (id: string) => void;
   onConvert: (id: string) => void;
+  onDeleteVoided: (id: string) => void;
+  canDeleteVoided: boolean;
 }) {
   const documentFile = Array.isArray(document.document_files)
     ? (document.document_files[0] ?? null)
@@ -213,6 +219,20 @@ function DocumentRowView({
                   Crear confirmación
                 </button>
               )}
+              {canDeleteVoided && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger-action"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDeleteVoided(document.id);
+                  }}
+                >
+                  <Trash2 size={15} />
+                  Eliminar documento anulado
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -314,6 +334,26 @@ export function DashboardPage() {
       navigate(`/documents/${newId}`);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'No se pudo crear la confirmación.');
+    }
+  }
+  async function removeVoided(id: string) {
+    if (
+      !window.confirm(
+        'Eliminarás de forma permanente este documento anulado y su PDF, si existe. Esta acción no se puede deshacer.',
+      )
+    )
+      return;
+    const reason = window.prompt('Motivo de eliminación (obligatorio):')?.trim();
+    if (!reason) {
+      window.alert('La eliminación requiere un motivo.');
+      return;
+    }
+    try {
+      await deleteVoidedDocument(id, reason);
+      await client.invalidateQueries({ queryKey: ['documents'] });
+      window.alert('Documento anulado eliminado.');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo eliminar el documento.');
     }
   }
   return (
@@ -500,6 +540,8 @@ export function DashboardPage() {
                   onDownload={(id) => void download(id)}
                   onShare={(id) => void share(id)}
                   onConvert={(id) => void convert(id)}
+                  onDeleteVoided={(id) => void removeVoided(id)}
+                  canDeleteVoided={profile?.role === 'admin' && document.status === 'void'}
                 />
               ))}
             </div>
