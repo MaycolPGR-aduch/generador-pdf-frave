@@ -133,8 +133,7 @@ function ProductPicker({
           `${product.sku} ${product.name} ${product.product_categories?.[0]?.name ?? ''} ${variantNames}`,
         );
         return !search || searchable.includes(search);
-      })
-      .slice(0, 10);
+      });
   }, [products, query, variants]);
 
   useEffect(() => {
