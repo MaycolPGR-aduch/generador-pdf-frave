@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Check, ClipboardList, FileDown, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ClipboardList,
+  FileDown,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { calculateDocumentTotals, formatCurrencyAmount, formatDecimal } from '@frave/domain';
 import {
@@ -21,6 +30,7 @@ import {
   updateDraft,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
+import type { Product, ProductVariant } from '../lib/types';
 
 const itemSchema = z.object({
   productId: z.string().min(1, 'Selecciona un producto'),
@@ -81,6 +91,143 @@ const todayPlus = (days: number) => {
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
 };
+
+function normalizeProductSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function productLabel(product: Product) {
+  return `${product.sku} · ${product.name}`;
+}
+
+function ProductPicker({
+  products,
+  variants,
+  value,
+  onChange,
+}: {
+  products: Product[];
+  variants: ProductVariant[];
+  value: string;
+  onChange: (productId: string) => void;
+}) {
+  const listId = useId();
+  const selectedProduct = products.find((product) => product.id === value);
+  const selectedLabel = selectedProduct ? productLabel(selectedProduct) : '';
+  const [query, setQuery] = useState(selectedLabel);
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const matches = useMemo(() => {
+    const search = normalizeProductSearch(query);
+    return products
+      .filter((product) => {
+        const variantNames = variants
+          .filter((variant) => variant.product_id === product.id)
+          .map((variant) => variant.name)
+          .join(' ');
+        const searchable = normalizeProductSearch(
+          `${product.sku} ${product.name} ${product.product_categories?.[0]?.name ?? ''} ${variantNames}`,
+        );
+        return !search || searchable.includes(search);
+      })
+      .slice(0, 10);
+  }, [products, query, variants]);
+
+  useEffect(() => {
+    if (!isOpen) setQuery(selectedLabel);
+  }, [isOpen, selectedLabel]);
+
+  useEffect(() => setActiveIndex(0), [query]);
+
+  function selectProduct(product: Product) {
+    onChange(product.id);
+    setQuery(productLabel(product));
+    setIsOpen(false);
+  }
+
+  return (
+    <div className="product-picker">
+      <div className="product-picker-input">
+        <Search size={15} aria-hidden="true" />
+        <input
+          value={query}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls={listId}
+          aria-expanded={isOpen}
+          aria-activedescendant={
+            isOpen && matches[activeIndex] ? `${listId}-${activeIndex}` : undefined
+          }
+          placeholder="Buscar por SKU, producto o variante…"
+          onFocus={(event) => {
+            setIsOpen(true);
+            event.currentTarget.select();
+          }}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+            if (value) onChange('');
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setIsOpen(true);
+              setActiveIndex((current) => Math.min(current + 1, Math.max(matches.length - 1, 0)));
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setActiveIndex((current) => Math.max(current - 1, 0));
+            }
+            if (event.key === 'Enter' && isOpen && matches[activeIndex]) {
+              event.preventDefault();
+              selectProduct(matches[activeIndex]);
+            }
+            if (event.key === 'Escape') {
+              setIsOpen(false);
+              setQuery(selectedLabel);
+            }
+          }}
+        />
+      </div>
+      {isOpen && (
+        <div
+          id={listId}
+          className="product-picker-menu"
+          role="listbox"
+          aria-label="Resultados de productos"
+        >
+          {matches.length ? (
+            matches.map((product, index) => (
+              <button
+                id={`${listId}-${index}`}
+                key={product.id}
+                type="button"
+                role="option"
+                aria-selected={value === product.id}
+                className={index === activeIndex ? 'active' : ''}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectProduct(product)}
+              >
+                <strong>{productLabel(product)}</strong>
+                <span>
+                  {product.product_categories?.[0]?.name ?? 'Sin categoría'} · Stock{' '}
+                  {formatDecimal(product.stock_kg, 3)} kg
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="product-picker-empty">No encontramos productos con esa búsqueda.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DocumentBuilderPage() {
   const navigate = useNavigate();
@@ -628,7 +775,6 @@ export function DocumentBuilderPage() {
                   const options =
                     variants.data?.filter((variant) => variant.product_id === product?.id) ?? [];
                   const variant = variants.data?.find((v) => v.id === item?.variantId);
-                  const productField = form.register(`items.${index}.productId`);
                   const variantField = form.register(`items.${index}.variantId`);
                   const displayedPrice =
                     item?.quotedUnitPriceUsd ||
@@ -639,22 +785,20 @@ export function DocumentBuilderPage() {
                     <div className="item-line" key={field.id}>
                       <span className="item-number">{index + 1}</span>
                       <div>
-                        <select
-                          {...productField}
-                          onChange={(event) => {
-                            productField.onChange(event);
+                        <ProductPicker
+                          products={products.data ?? []}
+                          variants={variants.data ?? []}
+                          value={item?.productId ?? ''}
+                          onChange={(productId) => {
+                            form.setValue(`items.${index}.productId`, productId, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
                             form.setValue(`items.${index}.variantId`, '');
                             form.setValue(`items.${index}.sourceQuoteItemId`, '');
                             form.setValue(`items.${index}.quotedUnitPriceUsd`, '');
                           }}
-                        >
-                          <option value="">Seleccionar…</option>
-                          {products.data?.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.sku} · {p.name} · Stock {formatDecimal(p.stock_kg, 3)} kg
-                            </option>
-                          ))}
-                        </select>
+                        />
                         {options.length > 0 && (
                           <select
                             className="variant-select"

@@ -1015,7 +1015,7 @@ textarea {
 .item-table {
   border: 1px solid var(--line);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 .item-head,
 .item-line {
@@ -1032,6 +1032,103 @@ textarea {
   min-height: 35px;
   padding: 0 10px;
   text-transform: uppercase;
+}
+
+.item-line:focus-within {
+  position: relative;
+  z-index: 2;
+}
+
+.product-picker {
+  position: relative;
+}
+
+.product-picker-input {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.product-picker-input:focus-within {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgb(244 124 32 / 12%);
+}
+
+.product-picker-input svg {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.product-picker-input input {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  min-width: 0;
+  padding-left: 0;
+}
+
+.product-picker-input input:focus {
+  box-shadow: none;
+}
+
+.product-picker-menu {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 24px rgb(38 34 30 / 16%);
+  left: 0;
+  margin-top: 5px;
+  max-height: 280px;
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+}
+
+.product-picker-menu button {
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  display: block;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.product-picker-menu button:last-child {
+  border-bottom: 0;
+}
+
+.product-picker-menu button:hover,
+.product-picker-menu button.active {
+  background: var(--soft-orange);
+}
+
+.product-picker-menu strong,
+.product-picker-menu span {
+  display: block;
+}
+
+.product-picker-menu strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.product-picker-menu span,
+.product-picker-empty {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-top: 3px;
+}
+
+.product-picker-empty {
+  padding: 12px;
 }
 .item-line {
   border-top: 1px solid #f0edea;
