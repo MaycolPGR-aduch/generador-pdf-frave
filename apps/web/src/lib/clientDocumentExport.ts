@@ -202,13 +202,14 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
       'SKU / Código',
       'Denominación',
       'Categoría',
-      'Cantidad kg',
+      'Cantidad',
+      'Unidad',
       'Moneda documento',
-      'Precio USD/kg',
+      'Precio USD/unidad',
       'Subtotal USD',
       'IGV USD',
       'Total USD',
-      'Precio documento/kg',
+      'Precio documento/unidad',
       'Subtotal documento',
       'IGV documento',
       'Total documento',
@@ -225,6 +226,7 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
         safeText(item.denomination_snapshot),
         safeText(item.category_snapshot),
         asNumber(item.quantity_kg),
+        safeText(item.unit_snapshot ?? 'kg'),
         document.currency,
         asNumber(item.unit_price_usd),
         asNumber(item.subtotal_usd),
@@ -241,10 +243,10 @@ export async function exportClientDocumentsToExcel({ client, from, to, documents
   const productSheet = XLSX.utils.aoa_to_sheet(productRows, { cellDates: true });
   setupTable(
     productSheet,
-    [20, 28, 22, 18, 10, 18, 36, 28, 14, 14, 16, 16, 16, 16, 18, 18, 18, 18, 38],
+    [20, 28, 22, 18, 10, 18, 36, 28, 14, 12, 14, 16, 16, 16, 16, 18, 18, 18, 18, 38],
     productRows.length,
     [3],
-    [8, 10, 11, 12, 13, 14, 15, 16, 17],
+    [8, 11, 12, 13, 14, 15, 16, 17, 18],
   );
   XLSX.utils.book_append_sheet(workbook, productSheet, 'Productos');
 

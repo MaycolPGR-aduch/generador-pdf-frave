@@ -97,6 +97,7 @@ export async function loadPdfData(admin: SupabaseClient, documentId: string): Pr
       denomination: str(item.denomination_snapshot),
       category: str(item.category_snapshot),
       quantityKg: item.quantity_kg == null ? null : str(item.quantity_kg),
+      unit: str(item.unit_snapshot, 'kg'),
       unitPriceUsd: str(item.unit_price_usd, '0'),
       unitPriceDocument: str(item.unit_price_document ?? item.unit_price_usd, '0'),
       subtotalUsd: item.subtotal_usd == null ? null : str(item.subtotal_usd),

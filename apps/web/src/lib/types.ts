@@ -44,6 +44,7 @@ export type Product = {
   sku: string;
   name: string;
   category_id: string;
+  measurement_unit_id: string;
   unit_price_usd: string;
   stock_kg: string;
   supply_1: string | null;
@@ -51,9 +52,20 @@ export type Product = {
   supply_3: string | null;
   active: boolean;
   product_categories?: Array<{ name: string }> | null;
+  measurement_units?: Array<Pick<MeasurementUnit, 'name' | 'symbol'>> | null;
 };
 
 export type ProductCategory = { id: string; name: string; active: boolean };
+export type MeasurementUnit = {
+  id: string;
+  name: string;
+  symbol: string;
+  active: boolean;
+};
+
+export function productUnitSymbol(product: Pick<Product, 'measurement_units'> | null | undefined) {
+  return product?.measurement_units?.[0]?.symbol ?? 'kg';
+}
 export type CompanySettings = {
   id: boolean;
   display_name: string;
@@ -162,7 +174,7 @@ export type InventoryMovement = {
   stock_after_kg: string;
   reason: string;
   created_at: string;
-  products?: Pick<Product, 'sku' | 'name'> | null;
+  products?: Pick<Product, 'sku' | 'name' | 'measurement_units'> | null;
   documents?: Pick<DocumentRow, 'number'> | null;
 };
 
@@ -178,6 +190,7 @@ export type DocumentItemRow = {
   sku_snapshot: string | null;
   denomination_snapshot: string | null;
   category_snapshot: string | null;
+  unit_snapshot: string | null;
   unit_price_usd: string | null;
   subtotal_usd: string | null;
   tax_usd: string | null;

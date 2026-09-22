@@ -285,9 +285,9 @@ export function DocumentDetailPage() {
               <span>REF</span>
               <span>DENOMINACIÓN</span>
               <span>CATEGORÍA</span>
-              <span>KG / NETO</span>
+              <span>CANTIDAD</span>
               <span>
-                {hasTotals ? `${document.currency} / TOTAL` : `${document.currency} / KG`}
+                {hasTotals ? `${document.currency} / TOTAL` : `${document.currency} / UNIDAD`}
               </span>
             </div>
             {items.map((item) => (
@@ -295,7 +295,11 @@ export function DocumentDetailPage() {
                 <strong>{item.sku_snapshot}</strong>
                 <span>{item.denomination_snapshot}</span>
                 <span>{item.category_snapshot}</span>
-                <span>{item.quantity_kg == null ? '—' : `${item.quantity_kg} kg`}</span>
+                <span>
+                  {item.quantity_kg == null
+                    ? '—'
+                    : `${item.quantity_kg} ${item.unit_snapshot ?? 'kg'}`}
+                </span>
                 <span>
                   {hasTotals
                     ? `${currencySymbol} ${formatAmount(item.total_document ?? item.total_usd)}`

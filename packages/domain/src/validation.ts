@@ -38,7 +38,7 @@ export function validateDocumentDraft(input: DocumentDraftInput): ValidationIssu
     if (!item.category.trim())
       issues.push({ path: `${path}.category`, message: 'Falta la categoría' });
     if (!/^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/.test(item.unitPriceUsd)) {
-      issues.push({ path: `${path}.unitPriceUsd`, message: 'Precio USD/kg inválido' });
+      issues.push({ path: `${path}.unitPriceUsd`, message: 'Precio por unidad inválido' });
     }
     if (
       input.type === 'proforma' &&
@@ -48,7 +48,7 @@ export function validateDocumentDraft(input: DocumentDraftInput): ValidationIssu
     ) {
       issues.push({
         path: `${path}.quantityKg`,
-        message: 'La confirmación de pedido requiere una cantidad en kg válida',
+        message: 'La confirmación de pedido requiere una cantidad válida',
       });
     }
   });

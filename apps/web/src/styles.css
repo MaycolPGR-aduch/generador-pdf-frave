@@ -2116,6 +2116,17 @@ textarea {
   margin-top: 20px;
 }
 
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.measurement-unit-list > div {
+  align-items: center;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+}
+
 .confirmation-modal {
   width: min(520px, 100%);
 }

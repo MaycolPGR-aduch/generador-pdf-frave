@@ -16,6 +16,7 @@ import type {
   CommercialOption,
   CommercialOptionType,
   InventoryMovement,
+  MeasurementUnit,
 } from './types';
 
 function requireSupabase() {
@@ -103,7 +104,7 @@ export async function listClientDocumentsForExport(input: {
        apply_igv, currency, exchange_rate_pen_per_usd, subtotal_usd, tax_usd, total_usd,
        subtotal_document, tax_document, total_document, sent_at, voided_at, void_reason, created_at,
        document_items(id, document_id, position, product_id, variant_id, source_quote_item_id,
-         quantity_kg, observation, sku_snapshot, denomination_snapshot, category_snapshot,
+         quantity_kg, observation, sku_snapshot, denomination_snapshot, category_snapshot, unit_snapshot,
          unit_price_usd, subtotal_usd, tax_usd, total_usd,
          unit_price_document, subtotal_document, tax_document, total_document)`,
     )
@@ -147,7 +148,7 @@ export async function listProducts(): Promise<Product[]> {
   const { data, error } = await client
     .from('products')
     .select(
-      'id, sku, name, category_id, unit_price_usd, stock_kg, supply_1, supply_2, supply_3, active, product_categories(name)',
+      'id, sku, name, category_id, measurement_unit_id, unit_price_usd, stock_kg, supply_1, supply_2, supply_3, active, product_categories(name), measurement_units(name, symbol)',
     )
     .eq('active', true)
     .order('name');
@@ -164,7 +165,7 @@ export async function listLowStockProducts(thresholdKg: string): Promise<Product
   const { data, error } = await client
     .from('products')
     .select(
-      'id, sku, name, category_id, unit_price_usd, stock_kg, supply_1, supply_2, supply_3, active, product_categories(name)',
+      'id, sku, name, category_id, measurement_unit_id, unit_price_usd, stock_kg, supply_1, supply_2, supply_3, active, product_categories(name), measurement_units(name, symbol)',
     )
     .eq('active', true)
     .lte('stock_kg', thresholdKg)
@@ -187,6 +188,47 @@ export async function listCategories(): Promise<ProductCategory[]> {
     .order('name');
   if (error) throw error;
   return (data ?? []) as ProductCategory[];
+}
+
+export async function listMeasurementUnits(): Promise<MeasurementUnit[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('measurement_units')
+    .select('id, name, symbol, active')
+    .eq('active', true)
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as MeasurementUnit[];
+}
+
+export async function createMeasurementUnit(input: {
+  name: string;
+  symbol: string;
+}): Promise<MeasurementUnit> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('measurement_units')
+    .insert({ name: input.name.trim(), symbol: input.symbol.trim() })
+    .select('id, name, symbol, active')
+    .single();
+  if (error) throw error;
+  return data as MeasurementUnit;
+}
+
+export async function updateMeasurementUnit(input: {
+  id: string;
+  name: string;
+  symbol: string;
+}): Promise<MeasurementUnit> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('measurement_units')
+    .update({ name: input.name.trim(), symbol: input.symbol.trim() })
+    .eq('id', input.id)
+    .select('id, name, symbol, active')
+    .single();
+  if (error) throw error;
+  return data as MeasurementUnit;
 }
 
 export async function listCommercialOptions(
@@ -236,6 +278,7 @@ export async function createProduct(input: {
   sku: string;
   name: string;
   categoryId: string;
+  measurementUnitId: string;
   unitPriceUsd: string;
   initialStockKg: string;
   supply1: string;
@@ -249,13 +292,14 @@ export async function createProduct(input: {
       sku: input.sku.trim(),
       name: input.name.trim(),
       category_id: input.categoryId,
+      measurement_unit_id: input.measurementUnitId,
       unit_price_usd: input.unitPriceUsd,
       stock_kg: input.initialStockKg || '0',
       supply_1: input.supply1.trim() || null,
       supply_2: input.supply2.trim() || null,
       supply_3: input.supply3.trim() || null,
     })
-    .select('*, product_categories(name)')
+    .select('*, product_categories(name), measurement_units(name, symbol)')
     .single();
   if (error) throw error;
   return {
@@ -270,6 +314,7 @@ export async function updateProduct(input: {
   sku: string;
   name: string;
   categoryId: string;
+  measurementUnitId: string;
   unitPriceUsd: string;
   supply1: string;
   supply2: string;
@@ -282,13 +327,14 @@ export async function updateProduct(input: {
       sku: input.sku.trim(),
       name: input.name.trim(),
       category_id: input.categoryId,
+      measurement_unit_id: input.measurementUnitId,
       unit_price_usd: input.unitPriceUsd,
       supply_1: input.supply1.trim() || null,
       supply_2: input.supply2.trim() || null,
       supply_3: input.supply3.trim() || null,
     })
     .eq('id', input.id)
-    .select('*, product_categories(name)')
+    .select('*, product_categories(name), measurement_units(name, symbol)')
     .single();
   if (error) throw error;
   return {
@@ -327,7 +373,7 @@ export async function listInventoryMovements(): Promise<InventoryMovement[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from('inventory_movements')
-    .select('*, products(sku, name), documents(number)')
+    .select('*, products(sku, name, measurement_units(name, symbol)), documents(number)')
     .order('created_at', { ascending: false })
     .limit(40);
   if (error) throw error;

@@ -30,7 +30,7 @@ import {
   updateDraft,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
-import type { Product, ProductVariant } from '../lib/types';
+import { productUnitSymbol, type Product, type ProductVariant } from '../lib/types';
 
 const itemSchema = z.object({
   productId: z.string().min(1, 'Selecciona un producto'),
@@ -216,7 +216,7 @@ function ProductPicker({
                 <strong>{productLabel(product)}</strong>
                 <span>
                   {product.product_categories?.[0]?.name ?? 'Sin categoría'} · Stock{' '}
-                  {formatDecimal(product.stock_kg, 3)} kg
+                  {formatDecimal(product.stock_kg, 3)} {productUnitSymbol(product)}
                 </span>
               </button>
             ))
@@ -724,7 +724,7 @@ export function DocumentBuilderPage() {
                 <textarea
                   rows={5}
                   {...form.register('considerationsText')}
-                  placeholder={'Precios expresados en USD/kg\nSujeto a disponibilidad de stock'}
+                  placeholder={'Precios expresados por unidad\nSujeto a disponibilidad de stock'}
                 />
               </label>
             </div>
@@ -764,8 +764,8 @@ export function DocumentBuilderPage() {
                 <div className="item-head">
                   <span>#</span>
                   <span>Producto</span>
-                  <span>{type === 'proforma' ? 'Kg/Neto' : 'Kg/Neto (opcional)'}</span>
-                  <span>Precio {currency}/kg</span>
+                  <span>{type === 'proforma' ? 'Cantidad' : 'Cantidad (opcional)'}</span>
+                  <span>Precio {currency}/unidad</span>
                   <span />
                 </div>
                 {fields.map((field, index) => {
@@ -827,13 +827,20 @@ export function DocumentBuilderPage() {
                           aria-invalid={Boolean(quantityError)}
                           {...form.register(`items.${index}.quantityKg`)}
                         />
+                        {product && (
+                          <small className="field-help">Unidad: {productUnitSymbol(product)}</small>
+                        )}
                         {quantityError && <small className="field-error">{quantityError}</small>}
                       </div>
                       <span className="price-cell">
                         {product && displayedDocumentPrice
                           ? `${currency === 'PEN' ? 'S/' : 'USD'} ${formatCurrencyAmount(displayedDocumentPrice)}`
                           : '—'}
-                        {product && <small>Stock: {formatDecimal(product.stock_kg, 3)} kg</small>}
+                        {product && (
+                          <small>
+                            Stock: {formatDecimal(product.stock_kg, 3)} {productUnitSymbol(product)}
+                          </small>
+                        )}
                         {item?.sourceQuoteItemId && (
                           <small>Precio conservado de la cotización</small>
                         )}
@@ -944,8 +951,10 @@ export function DocumentBuilderPage() {
           ) : (
             <div className="summary-total">
               <span>Totales pendientes</span>
-              <strong>Completa los Kg</strong>
-              <small>La cotización mostrará precio por kg hasta tener todas las cantidades.</small>
+              <strong>Completa las cantidades</strong>
+              <small>
+                La cotización mostrará precio por unidad hasta tener todas las cantidades.
+              </small>
             </div>
           )}
           {step < 4 ? (

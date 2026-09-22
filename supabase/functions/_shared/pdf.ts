@@ -7,13 +7,14 @@ import {
   StandardFonts,
 } from 'npm:pdf-lib@1.17.1';
 
-export const TEMPLATE_VERSION = 'frave-pdf-v1.3.0';
+export const TEMPLATE_VERSION = 'frave-pdf-v1.4.0';
 type JsonRecord = Record<string, unknown>;
 export type PdfItem = {
   sku: string;
   denomination: string;
   category: string;
   quantityKg: string | null;
+  unit: string;
   unitPriceUsd: string;
   unitPriceDocument: string;
   subtotalUsd: string | null;
@@ -319,7 +320,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
   } else {
     y -= 24;
   }
-  const currencyLabel = data.currency === 'PEN' ? 'PEN/KG' : 'USD/KG';
+  const currencyLabel = data.currency === 'PEN' ? 'PEN/UNIDAD' : 'USD/UNIDAD';
   const totalLabel = data.currency === 'PEN' ? 'PEN/TOTAL' : 'USD/TOTAL';
   const proposalColumns = [
     { label: 'REF', x: 48, width: 53 },
@@ -331,7 +332,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
     { label: 'REF', x: 48, width: 42 },
     { label: 'DENOMINACIÓN', x: 93, width: 143 },
     { label: 'CATEGORÍA', x: 239, width: 78 },
-    { label: 'KG/NETO', x: 320, width: 39 },
+    { label: 'CANTIDAD', x: 320, width: 39 },
     { label: currencyLabel, x: 361, width: 47 },
     { label: 'SUBTOTAL', x: 410, width: 55 },
     { label: 'IGV', x: 467, width: 42 },
@@ -341,7 +342,7 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
     { label: 'REF', x: 48, width: 42 },
     { label: 'DENOMINACIÓN', x: 93, width: 175 },
     { label: 'CATEGORÍA', x: 271, width: 77 },
-    { label: 'KG/NETO', x: 351, width: 41 },
+    { label: 'CANTIDAD', x: 351, width: 41 },
     { label: currencyLabel, x: 395, width: 50 },
     { label: 'SUBTOTAL', x: 447, width: 57 },
     { label: totalLabel, x: 506, width: 60 },
@@ -414,7 +415,14 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
         7.3,
       );
     } else if (hasIgv) {
-      drawTableValue(page, regular, item.quantityKg ?? '—', columns[3].x, baseY, 7.2);
+      drawTableValue(
+        page,
+        regular,
+        item.quantityKg == null ? '—' : `${item.quantityKg} ${item.unit}`,
+        columns[3].x,
+        baseY,
+        7.2,
+      );
       drawTableValue(
         page,
         regular,
@@ -460,7 +468,14 @@ export async function createFravePdf(data: PdfData, draft = false): Promise<Uint
         7.2,
       );
     } else {
-      drawTableValue(page, regular, item.quantityKg ?? '—', columns[3].x, baseY, 7.2);
+      drawTableValue(
+        page,
+        regular,
+        item.quantityKg == null ? '—' : `${item.quantityKg} ${item.unit}`,
+        columns[3].x,
+        baseY,
+        7.2,
+      );
       drawTableValue(
         page,
         regular,

@@ -29,7 +29,7 @@ describe('document draft validation', () => {
     expect(validateDocumentDraft(draft('proposal'))).toEqual([]);
   });
 
-  it('requires every confirmation item to have a kg quantity', () => {
+  it('requires every confirmation item to have a valid quantity', () => {
     expect(validateDocumentDraft(draft('proforma'))).toContainEqual(
       expect.objectContaining({ path: 'items.0.quantityKg' }),
     );

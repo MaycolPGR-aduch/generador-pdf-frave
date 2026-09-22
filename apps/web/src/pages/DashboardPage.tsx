@@ -30,7 +30,7 @@ import {
   markDocumentSent,
 } from '../lib/api';
 import { formatCurrencyAmount, formatDecimal } from '@frave/domain';
-import type { DocumentRow } from '../lib/types';
+import { productUnitSymbol, type DocumentRow } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 
 const statusLabels: Record<string, string> = {
@@ -412,10 +412,13 @@ export function DashboardPage() {
               Stock bajo: {lowStock.data.length} producto{lowStock.data.length === 1 ? '' : 's'}
             </strong>
             <span>
-              Umbral: {formatDecimal(settings.data?.low_stock_threshold_kg ?? '5', 3)} kg.{' '}
+              Umbral: {formatDecimal(settings.data?.low_stock_threshold_kg ?? '5', 3)} por unidad.{' '}
               {lowStock.data
                 .slice(0, 4)
-                .map((product) => `${product.sku} (${formatDecimal(product.stock_kg, 3)} kg)`)
+                .map(
+                  (product) =>
+                    `${product.sku} (${formatDecimal(product.stock_kg, 3)} ${productUnitSymbol(product)})`,
+                )
                 .join(' · ')}
               {lowStock.data.length > 4 ? ' · …' : ''}
             </span>

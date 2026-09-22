@@ -23,6 +23,7 @@ import {
   createClient,
   createClientAddress,
   createClientContact,
+  createMeasurementUnit,
   createProduct,
   createVariant,
   createBankAccount,
@@ -36,14 +37,17 @@ import {
   listBankAccounts,
   loadCompanySettings,
   listInventoryMovements,
+  listMeasurementUnits,
   updateCompanySettings,
   updateClient,
+  updateMeasurementUnit,
   updateProduct,
   updateVariant,
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
 import { exportClientDocumentsToExcel } from '../lib/clientDocumentExport';
-import type { CommercialOptionType, Product, ProductCategory } from '../lib/types';
+import type { CommercialOptionType, MeasurementUnit, Product, ProductCategory } from '../lib/types';
+import { productUnitSymbol } from '../lib/types';
 import { formatDecimal } from '@frave/domain';
 
 type Tab = 'catalog' | 'clients' | 'settings' | 'users';
@@ -68,11 +72,17 @@ type ProductForm = {
   sku: string;
   name: string;
   categoryId: string;
+  measurementUnitId: string;
   unitPriceUsd: string;
   initialStockKg: string;
   supply1: string;
   supply2: string;
   supply3: string;
+};
+
+type MeasurementUnitForm = {
+  name: string;
+  symbol: string;
 };
 
 type VariantForm = {
@@ -129,14 +139,18 @@ function productCategoryName(
 function ProductFields({
   value,
   categories,
+  measurementUnits,
   onChange,
   editing,
 }: {
   value: ProductForm;
   categories: ProductCategory[];
+  measurementUnits: MeasurementUnit[];
   onChange: (value: ProductForm) => void;
   editing?: boolean;
 }) {
+  const selectedUnit = measurementUnits.find((unit) => unit.id === value.measurementUnitId);
+  const unitSymbol = selectedUnit?.symbol ?? 'kg';
   return (
     <div className="two-columns">
       <label>
@@ -173,7 +187,22 @@ function ProductFields({
         </select>
       </label>
       <label>
-        Precio USD/kg
+        Unidad de medida
+        <select
+          required
+          value={value.measurementUnitId}
+          onChange={(event) => onChange({ ...value, measurementUnitId: event.target.value })}
+        >
+          <option value="">Seleccionar…</option>
+          {measurementUnits.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.name} ({unit.symbol})
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Precio USD/{unitSymbol}
         <input
           required
           type="number"
@@ -185,7 +214,7 @@ function ProductFields({
         />
       </label>
       <label>
-        {editing ? 'Stock actual (kg)' : 'Stock inicial (kg)'}
+        {editing ? `Stock actual (${unitSymbol})` : `Stock inicial (${unitSymbol})`}
         <input
           required
           type="number"
@@ -236,9 +265,11 @@ function VariantFields({
   onChange,
 }: {
   value: VariantForm;
-  products: Array<{ id: string; sku: string; name: string }>;
+  products: Array<Pick<Product, 'id' | 'sku' | 'name' | 'measurement_units'>>;
   onChange: (value: VariantForm) => void;
 }) {
+  const selectedProduct = products.find((product) => product.id === value.productId);
+  const unitSymbol = productUnitSymbol(selectedProduct);
   return (
     <div className="two-columns">
       <label>
@@ -266,7 +297,7 @@ function VariantFields({
         />
       </label>
       <label>
-        Precio alternativo USD/kg
+        Precio alternativo USD/{unitSymbol}
         <input
           type="number"
           min="0"
@@ -324,10 +355,16 @@ export function AdminPage() {
   const [tab, setTab] = useState<Tab>('catalog');
   const [message, setMessage] = useState('');
   const [categoryName, setCategoryName] = useState('');
+  const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnitForm>({
+    name: '',
+    symbol: '',
+  });
+  const [editingMeasurementUnitId, setEditingMeasurementUnitId] = useState<string | null>(null);
   const [product, setProduct] = useState<ProductForm>({
     sku: '',
     name: '',
     categoryId: '',
+    measurementUnitId: '',
     unitPriceUsd: '',
     initialStockKg: '0',
     supply1: '',
@@ -397,6 +434,10 @@ export function AdminPage() {
 
   const products = useQuery({ queryKey: ['products'], queryFn: listProducts });
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories });
+  const measurementUnits = useQuery({
+    queryKey: ['measurement-units'],
+    queryFn: listMeasurementUnits,
+  });
   const variants = useQuery({ queryKey: ['variants'], queryFn: () => listVariants() });
   const banks = useQuery({ queryKey: ['banks'], queryFn: listBankAccounts });
   const clients = useQuery({ queryKey: ['clients'], queryFn: listClients });
@@ -477,6 +518,12 @@ export function AdminPage() {
     [variantViewerProductId, variants.data],
   );
 
+  useEffect(() => {
+    if (editingProductId || product.measurementUnitId) return;
+    const kilogram = measurementUnits.data?.find((unit) => unit.symbol.toLowerCase() === 'kg');
+    if (kilogram) setProduct((current) => ({ ...current, measurementUnitId: kilogram.id }));
+  }, [editingProductId, measurementUnits.data, product.measurementUnitId]);
+
   function clearCatalogFilters() {
     setProductSearch('');
     setProductCategoryId('');
@@ -493,6 +540,7 @@ export function AdminPage() {
       sku: item.sku,
       name: item.name,
       categoryId: item.category_id,
+      measurementUnitId: item.measurement_unit_id,
       unitPriceUsd: item.unit_price_usd,
       initialStockKg: item.stock_kg,
       supply1: item.supply_1 ?? '',
@@ -507,12 +555,23 @@ export function AdminPage() {
       sku: '',
       name: '',
       categoryId: '',
+      measurementUnitId: '',
       unitPriceUsd: '',
       initialStockKg: '0',
       supply1: '',
       supply2: '',
       supply3: '',
     });
+  }
+
+  function startMeasurementUnitEdit(item: MeasurementUnit) {
+    setEditingMeasurementUnitId(item.id);
+    setMeasurementUnit({ name: item.name, symbol: item.symbol });
+  }
+
+  function closeMeasurementUnitEdit() {
+    setEditingMeasurementUnitId(null);
+    setMeasurementUnit({ name: '', symbol: '' });
   }
 
   function closeProductDeletion() {
@@ -601,6 +660,7 @@ export function AdminPage() {
           sku: '',
           name: '',
           categoryId: '',
+          measurementUnitId: '',
           unitPriceUsd: '',
           initialStockKg: '0',
           supply1: '',
@@ -643,6 +703,23 @@ export function AdminPage() {
     },
     onError: (error) =>
       setMessage(error instanceof Error ? error.message : 'No se pudo crear la categoría.'),
+  });
+
+  const measurementUnitMutation = useMutation({
+    mutationFn: () =>
+      editingMeasurementUnitId
+        ? updateMeasurementUnit({ ...measurementUnit, id: editingMeasurementUnitId })
+        : createMeasurementUnit(measurementUnit),
+    onSuccess: () => {
+      closeMeasurementUnitEdit();
+      setMessage('Unidad de medida guardada.');
+      void queryClient.invalidateQueries({ queryKey: ['measurement-units'] });
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: (error) =>
+      setMessage(
+        error instanceof Error ? error.message : 'No se pudo guardar la unidad de medida.',
+      ),
   });
 
   const productMutation = useMutation({
@@ -825,6 +902,12 @@ export function AdminPage() {
     categoryMutation.mutate();
   }
 
+  function submitMeasurementUnit(event: FormEvent) {
+    event.preventDefault();
+    setMessage('');
+    measurementUnitMutation.mutate();
+  }
+
   function submitVariant() {
     setMessage('');
     variantMutation.mutate();
@@ -934,6 +1017,74 @@ export function AdminPage() {
             <div className="admin-form">
               <div className="form-subheading">
                 <Plus size={15} />
+                {editingMeasurementUnitId ? 'Editar unidad de medida' : 'Nueva unidad de medida'}
+              </div>
+              <form className="admin-form" onSubmit={submitMeasurementUnit}>
+                <div className="two-columns">
+                  <label>
+                    Nombre
+                    <input
+                      required
+                      value={measurementUnit.name}
+                      onChange={(event) =>
+                        setMeasurementUnit({ ...measurementUnit, name: event.target.value })
+                      }
+                      placeholder="Ej. Unidad, Litro, Kilogramo"
+                    />
+                  </label>
+                  <label>
+                    Símbolo
+                    <input
+                      required
+                      maxLength={8}
+                      value={measurementUnit.symbol}
+                      onChange={(event) =>
+                        setMeasurementUnit({ ...measurementUnit, symbol: event.target.value })
+                      }
+                      placeholder="Ej. und, L, kg"
+                    />
+                  </label>
+                </div>
+                <div className="inline-actions">
+                  <button className="button secondary" disabled={measurementUnitMutation.isPending}>
+                    <Save size={15} />
+                    {measurementUnitMutation.isPending
+                      ? 'Guardando…'
+                      : editingMeasurementUnitId
+                        ? 'Guardar unidad'
+                        : 'Agregar unidad'}
+                  </button>
+                  {editingMeasurementUnitId && (
+                    <button
+                      type="button"
+                      className="button ghost"
+                      onClick={closeMeasurementUnitEdit}
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </form>
+              {measurementUnits.data?.length ? (
+                <div className="admin-list measurement-unit-list">
+                  {measurementUnits.data.map((unit) => (
+                    <div key={unit.id}>
+                      <strong>{unit.symbol}</strong>
+                      <span>{unit.name}</span>
+                      <button
+                        type="button"
+                        className="button ghost small"
+                        onClick={() => startMeasurementUnitEdit(unit)}
+                      >
+                        <Pencil size={14} />
+                        Editar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="form-subheading">
+                <Plus size={15} />
                 Nueva categoría
               </div>
               <div className="inline-form">
@@ -959,6 +1110,7 @@ export function AdminPage() {
                 <ProductFields
                   value={product}
                   categories={categories.data ?? []}
+                  measurementUnits={measurementUnits.data ?? []}
                   onChange={setProduct}
                 />
                 <button className="button primary" disabled={productMutation.isPending}>
@@ -996,8 +1148,8 @@ export function AdminPage() {
             <div>
               <h3>Control de stock</h3>
               <p className="muted">
-                Unidad única: kg. Los ajustes quedan registrados y las confirmaciones descuentan al
-                emitirse.
+                Cada producto conserva su propia unidad. Los ajustes quedan registrados y las
+                confirmaciones descuentan al emitirse.
               </p>
             </div>
           </div>
@@ -1017,13 +1169,18 @@ export function AdminPage() {
                     <option value="">Seleccionar…</option>
                     {products.data?.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.sku} · {item.name} · {formatDecimal(item.stock_kg, 3)} kg
+                        {item.sku} · {item.name} · {formatDecimal(item.stock_kg, 3)}{' '}
+                        {productUnitSymbol(item)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Ajuste (kg)
+                  Ajuste (
+                  {productUnitSymbol(
+                    products.data?.find((item) => item.id === stockAdjustment.productId),
+                  )}
+                  )
                   <input
                     required
                     type="number"
@@ -1068,7 +1225,8 @@ export function AdminPage() {
                   <div key={movement.id}>
                     <strong>
                       {movement.quantity_delta_kg.startsWith('-') ? '' : '+'}
-                      {formatDecimal(movement.quantity_delta_kg.replace('-', ''), 3)} kg
+                      {formatDecimal(movement.quantity_delta_kg.replace('-', ''), 3)}{' '}
+                      {productUnitSymbol(movement.products)}
                     </strong>
                     <span>
                       {movement.products?.sku ?? 'Producto'} · {movement.products?.name ?? ''} ·{' '}
@@ -1076,7 +1234,8 @@ export function AdminPage() {
                     </span>
                     <b>
                       {formatDecimal(movement.stock_before_kg, 3)} →{' '}
-                      {formatDecimal(movement.stock_after_kg, 3)} kg
+                      {formatDecimal(movement.stock_after_kg, 3)}{' '}
+                      {productUnitSymbol(movement.products)}
                       {movement.documents?.number ? ` · ${movement.documents.number}` : ''}
                     </b>
                   </div>
@@ -1147,7 +1306,7 @@ export function AdminPage() {
                 <span role="columnheader">SKU / código</span>
                 <span role="columnheader">Denominación</span>
                 <span role="columnheader">Categoría</span>
-                <span role="columnheader">Precio USD/kg</span>
+                <span role="columnheader">Precio USD/unidad</span>
                 <span role="columnheader">Stock</span>
                 <span role="columnheader">Acciones</span>
               </div>
@@ -1158,8 +1317,12 @@ export function AdminPage() {
                     {item.name}
                   </span>
                   <span role="cell">{productCategoryName(item, categories.data ?? [])}</span>
-                  <b role="cell">USD {formatDecimal(item.unit_price_usd, 2)}</b>
-                  <b role="cell">{formatDecimal(item.stock_kg, 3)} kg</b>
+                  <b role="cell">
+                    USD {formatDecimal(item.unit_price_usd, 2)}/{productUnitSymbol(item)}
+                  </b>
+                  <b role="cell">
+                    {formatDecimal(item.stock_kg, 3)} {productUnitSymbol(item)}
+                  </b>
                   <div className="product-row-actions" role="cell">
                     <button
                       type="button"
@@ -1288,7 +1451,7 @@ export function AdminPage() {
               <div className="entity-table-head" role="row">
                 <span role="columnheader">Producto</span>
                 <span role="columnheader">Denominación alternativa</span>
-                <span role="columnheader">Precio USD/kg</span>
+                <span role="columnheader">Precio USD/unidad</span>
                 <span role="columnheader">Acciones</span>
               </div>
               {pageSlice(filteredVariants, Math.min(variantPage, variantPages)).map((item) => {
@@ -1726,7 +1889,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  Alerta de stock bajo (kg)
+                  Cantidad mínima para alerta de stock
                   <input
                     type="number"
                     min="0"
@@ -2019,6 +2182,7 @@ export function AdminPage() {
               <ProductFields
                 value={product}
                 categories={categories.data ?? []}
+                measurementUnits={measurementUnits.data ?? []}
                 onChange={setProduct}
                 editing
               />
@@ -2132,7 +2296,7 @@ export function AdminPage() {
               <div className="variant-viewer-list">
                 <div className="variant-viewer-head">
                   <span>Denominación alternativa</span>
-                  <span>Precio USD/kg</span>
+                  <span>Precio USD/unidad</span>
                 </div>
                 {variantViewerItems.map((item) => (
                   <div key={item.id}>
