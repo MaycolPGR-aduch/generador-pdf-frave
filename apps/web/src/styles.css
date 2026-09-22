@@ -757,6 +757,52 @@ h3 {
   color: #526f80;
   margin-top: 25px;
 }
+.toast-notification {
+  align-items: flex-start;
+  border: 1px solid;
+  border-radius: 10px;
+  box-shadow: 0 14px 30px rgb(38 34 30 / 18%);
+  display: flex;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 13px;
+  position: fixed;
+  right: 24px;
+  top: 24px;
+  width: 100%;
+  z-index: 30;
+}
+.toast-notification.success {
+  background: #eef9f1;
+  border-color: #cae8d3;
+  color: #2f6d45;
+}
+.toast-notification.error {
+  background: #fff1ee;
+  border-color: #f4d2cc;
+  color: #a54c40;
+}
+.toast-notification > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.toast-notification > div {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.toast-notification strong {
+  font-size: 0.83rem;
+}
+.toast-notification span {
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.toast-notification .icon-button {
+  color: inherit;
+  flex: 0 0 auto;
+}
 .builder .page-heading {
   align-items: flex-start;
 }

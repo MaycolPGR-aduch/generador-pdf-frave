@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CircleAlert,
+  CircleCheck,
   Database,
   Download,
   ListTree,
@@ -362,7 +364,8 @@ export function AdminPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('catalog');
-  const [message, setMessage] = useState('');
+  const [message, setMessageText] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [categoryName, setCategoryName] = useState('');
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnitForm>({
     name: '',
@@ -459,6 +462,22 @@ export function AdminPage() {
     queryKey: ['inventory-movements'],
     queryFn: listInventoryMovements,
   });
+
+  function setMessage(nextMessage: string) {
+    setMessageType('success');
+    setMessageText(nextMessage);
+  }
+
+  function setErrorMessage(error: unknown, fallback: string) {
+    setMessageType('error');
+    setMessageText(errorMessage(error, fallback));
+  }
+
+  useEffect(() => {
+    if (!message) return;
+    const timeout = window.setTimeout(() => setMessageText(''), messageType === 'error' ? 8000 : 5000);
+    return () => window.clearTimeout(timeout);
+  }, [message, messageType]);
 
   const filteredProducts = useMemo(() => {
     const search = normalizeSearch(productSearch);
@@ -653,8 +672,7 @@ export function AdminPage() {
       void queryClient.invalidateQueries({ queryKey: ['products'] });
       void queryClient.invalidateQueries({ queryKey: ['variants'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo eliminar el producto.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo eliminar el producto.'),
   });
 
   useEffect(() => {
@@ -716,8 +734,7 @@ export function AdminPage() {
       setMessage('Categoría creada.');
       void queryClient.invalidateQueries({ queryKey: ['categories'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo crear la categoría.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo crear la categoría.'),
   });
 
   const measurementUnitMutation = useMutation({
@@ -731,8 +748,7 @@ export function AdminPage() {
       void queryClient.invalidateQueries({ queryKey: ['measurement-units'] });
       void queryClient.invalidateQueries({ queryKey: ['products'] });
     },
-    onError: (error) =>
-      setMessage(errorMessage(error, 'No se pudo guardar la unidad de medida.')),
+    onError: (error) => setErrorMessage(error, 'No se pudo guardar la unidad de medida.'),
   });
 
   const productMutation = useMutation({
@@ -745,8 +761,7 @@ export function AdminPage() {
       setMessage('Producto guardado.');
       void queryClient.invalidateQueries({ queryKey: ['products'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo crear el producto.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo crear el producto.'),
   });
 
   const stockAdjustmentMutation = useMutation({
@@ -757,8 +772,7 @@ export function AdminPage() {
       void queryClient.invalidateQueries({ queryKey: ['products'] });
       void queryClient.invalidateQueries({ queryKey: ['inventory-movements'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo ajustar el stock.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo ajustar el stock.'),
   });
 
   const variantMutation = useMutation({
@@ -771,8 +785,7 @@ export function AdminPage() {
       setMessage('Variante guardada.');
       void queryClient.invalidateQueries({ queryKey: ['variants'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo crear la variante.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo crear la variante.'),
   });
 
   const clientMutation = useMutation({
@@ -783,8 +796,7 @@ export function AdminPage() {
       setMessage(`Cliente ${savedClient.client_code} guardado.`);
       void queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo crear el cliente.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo crear el cliente.'),
   });
 
   const clientExportMutation = useMutation({
@@ -814,8 +826,7 @@ export function AdminPage() {
           documentCount === 1 ? 'documento' : 'documentos'
         }.`,
       ),
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo exportar el Excel.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo exportar el Excel.'),
   });
 
   const contactMutation = useMutation({
@@ -824,8 +835,7 @@ export function AdminPage() {
       setClientContact({ clientId: '', fullName: '', salutation: '', email: '', phone: '' });
       setMessage('Contacto creado.');
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo crear el contacto.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo crear el contacto.'),
   });
 
   const addressMutation = useMutation({
@@ -834,8 +844,7 @@ export function AdminPage() {
       setClientAddress({ clientId: '', label: 'Principal', address: '', district: '', city: '' });
       setMessage('Dirección creada.');
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo crear la dirección.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo crear la dirección.'),
   });
 
   const settingsMutation = useMutation({
@@ -844,8 +853,7 @@ export function AdminPage() {
       setMessage('Configuración guardada.');
       void queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo guardar la configuración.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo guardar la configuración.'),
   });
 
   const bankMutation = useMutation({
@@ -861,8 +869,7 @@ export function AdminPage() {
       setMessage('Cuenta bancaria agregada.');
       void queryClient.invalidateQueries({ queryKey: ['banks'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo agregar la cuenta.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo agregar la cuenta.'),
   });
 
   const commercialOptionMutation = useMutation({
@@ -874,8 +881,7 @@ export function AdminPage() {
       setMessage('Opción comercial agregada.');
       void queryClient.invalidateQueries({ queryKey: ['commercial-options'] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo agregar la opción.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo agregar la opción.'),
   });
 
   const inviteMutation = useMutation({
@@ -884,8 +890,7 @@ export function AdminPage() {
       setInvite({ email: '', fullName: '', role: 'seller' });
       setMessage('Invitación enviada.');
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : 'No se pudo invitar al usuario.'),
+    onError: (error) => setErrorMessage(error, 'No se pudo invitar al usuario.'),
   });
 
   if (profile?.role !== 'admin') {
@@ -2508,7 +2513,27 @@ export function AdminPage() {
         </div>
       )}
 
-      {message && <div className="notice success">{message}</div>}
+      {message && (
+        <div
+          className={`toast-notification ${messageType}`}
+          role={messageType === 'error' ? 'alert' : 'status'}
+          aria-live={messageType === 'error' ? 'assertive' : 'polite'}
+        >
+          {messageType === 'error' ? <CircleAlert aria-hidden="true" /> : <CircleCheck aria-hidden="true" />}
+          <div>
+            <strong>{messageType === 'error' ? 'No se pudo completar la acción' : 'Operación exitosa'}</strong>
+            <span>{message}</span>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Cerrar notificación"
+            onClick={() => setMessageText('')}
+          >
+            <X size={17} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
