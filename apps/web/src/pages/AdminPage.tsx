@@ -11,11 +11,13 @@ import {
   Save,
   Search,
   Settings2,
+  Trash2,
   UsersRound,
   X,
 } from 'lucide-react';
 import {
   adjustProductStock,
+  archiveProduct,
   createCategory,
   createCommercialOption,
   createClient,
@@ -41,7 +43,7 @@ import {
 } from '../lib/api';
 import { useAuth } from '../auth/AuthProvider';
 import { exportClientDocumentsToExcel } from '../lib/clientDocumentExport';
-import type { CommercialOptionType, ProductCategory } from '../lib/types';
+import type { CommercialOptionType, Product, ProductCategory } from '../lib/types';
 import { formatDecimal } from '@frave/domain';
 
 type Tab = 'catalog' | 'clients' | 'settings' | 'users';
@@ -333,6 +335,7 @@ export function AdminPage() {
     supply3: '',
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [productPendingDeletion, setProductPendingDeletion] = useState<Product | null>(null);
   const [variantViewerProductId, setVariantViewerProductId] = useState<string | null>(null);
   const [supplyViewerProductId, setSupplyViewerProductId] = useState<string | null>(null);
   const [stockAdjustment, setStockAdjustment] = useState({
@@ -512,6 +515,10 @@ export function AdminPage() {
     });
   }
 
+  function closeProductDeletion() {
+    if (!deleteProductMutation.isPending) setProductPendingDeletion(null);
+  }
+
   function startVariantEdit(item: (typeof filteredVariants)[number]) {
     setEditingVariantId(item.id);
     setVariant({
@@ -559,9 +566,27 @@ export function AdminPage() {
     });
   }, [settings.data]);
 
+  const deleteProductMutation = useMutation({
+    mutationFn: (productId: string) => archiveProduct(productId),
+    onSuccess: () => {
+      const deletedProduct = productPendingDeletion;
+      setProductPendingDeletion(null);
+      setMessage(
+        deletedProduct
+          ? `${deletedProduct.sku} fue eliminado del catálogo.`
+          : 'Producto eliminado del catálogo.',
+      );
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
+      void queryClient.invalidateQueries({ queryKey: ['variants'] });
+    },
+    onError: (error) =>
+      setMessage(error instanceof Error ? error.message : 'No se pudo eliminar el producto.'),
+  });
+
   useEffect(() => {
     if (
       !editingProductId &&
+      !productPendingDeletion &&
       !editingVariantId &&
       !editingClientId &&
       !variantViewerProductId &&
@@ -583,6 +608,9 @@ export function AdminPage() {
           supply3: '',
         });
       }
+      if (productPendingDeletion && !deleteProductMutation.isPending) {
+        setProductPendingDeletion(null);
+      }
       if (variantViewerProductId) setVariantViewerProductId(null);
       if (supplyViewerProductId) setSupplyViewerProductId(null);
       if (editingVariantId) {
@@ -600,6 +628,8 @@ export function AdminPage() {
     editingClientId,
     editingProductId,
     editingVariantId,
+    deleteProductMutation.isPending,
+    productPendingDeletion,
     supplyViewerProductId,
     variantViewerProductId,
   ]);
@@ -1154,6 +1184,14 @@ export function AdminPage() {
                     >
                       <PackageSearch size={14} />
                       Ver insumos
+                    </button>
+                    <button
+                      type="button"
+                      className="button danger small"
+                      onClick={() => setProductPendingDeletion(item)}
+                    >
+                      <Trash2 size={14} />
+                      Eliminar
                     </button>
                   </div>
                 </div>
@@ -1994,6 +2032,65 @@ export function AdminPage() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {productPendingDeletion && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeProductDeletion();
+          }}
+        >
+          <section
+            className="modal-card confirmation-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-product-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <div className="eyebrow">Eliminar producto</div>
+                <h2 id="delete-product-title">¿Eliminar del catálogo?</h2>
+                <p className="muted">
+                  <strong>{productPendingDeletion.sku}</strong> · {productPendingDeletion.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Cancelar eliminación"
+                onClick={closeProductDeletion}
+                disabled={deleteProductMutation.isPending}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="confirmation-copy">
+              El producto y sus variaciones dejarán de aparecer en el catálogo y al crear nuevos
+              documentos. Los comprobantes, el stock y el historial existente se conservarán.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button ghost"
+                onClick={closeProductDeletion}
+                disabled={deleteProductMutation.isPending}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button danger"
+                disabled={deleteProductMutation.isPending}
+                onClick={() => deleteProductMutation.mutate(productPendingDeletion.id)}
+              >
+                <Trash2 size={15} />
+                {deleteProductMutation.isPending ? 'Eliminando…' : 'Eliminar producto'}
+              </button>
+            </div>
           </section>
         </div>
       )}

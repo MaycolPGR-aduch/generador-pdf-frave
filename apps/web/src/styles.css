@@ -290,6 +290,14 @@ h3 {
 .button.primary:hover {
   background: var(--orange-dark);
 }
+.button.danger {
+  background: #b6473b;
+  box-shadow: 0 5px 12px rgb(182 71 59 / 18%);
+  color: #fff;
+}
+.button.danger:hover {
+  background: #96382f;
+}
 .button.secondary {
   background: #f2efeb;
   color: #4c4641;
@@ -1963,6 +1971,19 @@ textarea {
   color: var(--orange-dark);
 }
 
+.product-row-actions .button.danger {
+  background: #fff1ef;
+  border-color: #efc8c3;
+  box-shadow: none;
+  color: #a23a32;
+}
+
+.product-row-actions .button.danger:hover {
+  background: #ffe4df;
+  border-color: #e4aba4;
+  color: #8e2f27;
+}
+
 .entity-table {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -2093,6 +2114,17 @@ textarea {
   gap: 10px;
   justify-content: flex-end;
   margin-top: 20px;
+}
+
+.confirmation-modal {
+  width: min(520px, 100%);
+}
+
+.confirmation-copy {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: 20px 0 0;
 }
 
 .variant-viewer-list {

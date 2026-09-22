@@ -298,6 +298,12 @@ export async function updateProduct(input: {
   } as Product;
 }
 
+export async function archiveProduct(productId: string): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc('archive_product', { p_product_id: productId });
+  if (error) throw error;
+}
+
 export async function adjustProductStock(input: {
   productId: string;
   quantityDeltaKg: string;
