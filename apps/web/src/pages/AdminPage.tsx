@@ -125,6 +125,15 @@ function normalizeSearch(value: string | null | undefined) {
     .trim();
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 function productCategoryName(
   product: { category_id: string; product_categories?: Array<{ name: string }> | null },
   categories: ProductCategory[],
@@ -507,6 +516,12 @@ export function AdminPage() {
   );
   const variantViewerProduct = products.data?.find((item) => item.id === variantViewerProductId);
   const supplyViewerProduct = products.data?.find((item) => item.id === supplyViewerProductId);
+  const editingMeasurementUnit = measurementUnits.data?.find(
+    (unit) => unit.id === editingMeasurementUnitId,
+  );
+  const productsUsingEditedMeasurementUnit = editingMeasurementUnitId
+    ? (products.data ?? []).filter((item) => item.measurement_unit_id === editingMeasurementUnitId)
+    : [];
   const supplyViewerItems = supplyViewerProduct
     ? [supplyViewerProduct.supply_1, supplyViewerProduct.supply_2, supplyViewerProduct.supply_3]
         .map((name, index) => (name ? { name, position: index + 1 } : null))
@@ -717,9 +732,7 @@ export function AdminPage() {
       void queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error) =>
-      setMessage(
-        error instanceof Error ? error.message : 'No se pudo guardar la unidad de medida.',
-      ),
+      setMessage(errorMessage(error, 'No se pudo guardar la unidad de medida.')),
   });
 
   const productMutation = useMutation({
@@ -1038,6 +1051,7 @@ export function AdminPage() {
                       required
                       maxLength={8}
                       value={measurementUnit.symbol}
+                      disabled={productsUsingEditedMeasurementUnit.length > 0}
                       onChange={(event) =>
                         setMeasurementUnit({ ...measurementUnit, symbol: event.target.value })
                       }
@@ -1045,6 +1059,15 @@ export function AdminPage() {
                     />
                   </label>
                 </div>
+                {editingMeasurementUnit && productsUsingEditedMeasurementUnit.length > 0 && (
+                  <p className="muted">
+                    {editingMeasurementUnit.symbol} está asignada a{' '}
+                    {productsUsingEditedMeasurementUnit.length}{' '}
+                    {productsUsingEditedMeasurementUnit.length === 1 ? 'producto' : 'productos'}.
+                    Puedes cambiar su nombre, pero no el símbolo: crear una unidad nueva conserva el
+                    inventario y los documentos existentes.
+                  </p>
+                )}
                 <div className="inline-actions">
                   <button className="button secondary" disabled={measurementUnitMutation.isPending}>
                     <Save size={15} />
